@@ -1,0 +1,103 @@
+{
+  "name": "snowrail",
+  "version": "2.0.0",
+  "private": true,
+  "description": "SnowRail - Autonomous Treasury Orchestrator with YUKI AI Assistant & SENTINEL Trust Layer",
+  "author": "Colombia Blockchain <team@snowrail.xyz>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Colombia-Blockchain/SnowRail"
+  },
+  "keywords": [
+    "x402",
+    "erc-8004",
+    "avalanche",
+    "ai-agents",
+    "treasury",
+    "payments",
+    "zero-knowledge",
+    "sentinel",
+    "yuki"
+  ],
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "prepare": "husky install",
+    "sentinel:test": "turbo run test --filter=@snowrail/sentinel",
+    "yuki:dev": "turbo run dev --filter=@snowrail/yuki",
+    "frontend:dev": "turbo run dev --filter=frontend",
+    "backend:dev": "turbo run dev --filter=backend",
+    "contracts:deploy": "cd contracts && npx hardhat run scripts/deploy.ts --network fuji",
+    "contracts:test": "cd contracts && npx hardhat test"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.0",
+    "turbo": "^1.11.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "turbo": {
+    "$schema": "https://turbo.build/schema.json",
+    "globalDependencies": [
+      "**/.env.*local"
+    ],
+    "pipeline": {
+      "build": {
+        "dependsOn": [
+          "^build"
+        ],
+        "outputs": [
+          "dist/**",
+          ".next/**",
+          "!.next/cache/**"
+        ]
+      },
+      "test": {
+        "dependsOn": [
+          "build"
+        ],
+        "outputs": [
+          "coverage/**"
+        ]
+      },
+      "lint": {
+        "outputs": []
+      },
+      "typecheck": {
+        "outputs": []
+      },
+      "dev": {
+        "cache": false,
+        "persistent": true
+      },
+      "clean": {
+        "cache": false
+      }
+    }
+  }
+}

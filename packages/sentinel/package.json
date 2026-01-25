@@ -1,0 +1,69 @@
+{
+  "name": "@snowrail/sentinel",
+  "version": "2.0.0",
+  "description": "Trust Layer for AI Agent Payments - Pre-payment validation for x402 protocol",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./checks": {
+      "import": "./dist/checks/index.mjs",
+      "require": "./dist/checks/index.js",
+      "types": "./dist/checks/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist coverage"
+  },
+  "dependencies": {
+    "crypto": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "eslint": "^8.56.0",
+    "tsup": "^8.0.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.0",
+    "@vitest/coverage-v8": "^1.2.0"
+  },
+  "keywords": [
+    "sentinel",
+    "trust",
+    "security",
+    "x402",
+    "payments",
+    "ai-agents",
+    "validation",
+    "blockchain"
+  ],
+  "author": "Colombia Blockchain <team@snowrail.xyz>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Colombia-Blockchain/SnowRail",
+    "directory": "packages/sentinel"
+  },
+  "homepage": "https://snowrail.xyz",
+  "bugs": {
+    "url": "https://github.com/Colombia-Blockchain/SnowRail/issues"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
