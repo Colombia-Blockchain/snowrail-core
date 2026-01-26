@@ -1,20 +1,20 @@
-import { ethers } from "hardhat";
+const hre = require("hardhat");
 
 async function main() {
-  const [deployer] = await ethers.getSigners();
+  const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying contracts with:", deployer.address);
-  console.log("Balance:", ethers.formatEther(await ethers.provider.getBalance(deployer.address)), "AVAX");
+  console.log("Balance:", hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)), "AVAX");
 
   // Deploy Mock USDC (for testnet)
   console.log("\n📦 Deploying Mock USDC...");
-  const MockUSDC = await ethers.getContractFactory("MockUSDC");
+  const MockUSDC = await hre.ethers.getContractFactory("MockUSDC");
   const usdc = await MockUSDC.deploy();
   await usdc.waitForDeployment();
   console.log("✅ MockUSDC:", await usdc.getAddress());
 
   // Deploy SnowRailTreasury
   console.log("\n📦 Deploying SnowRailTreasury...");
-  const Treasury = await ethers.getContractFactory("SnowRailTreasury");
+  const Treasury = await hre.ethers.getContractFactory("SnowRailTreasury");
   const treasury = await Treasury.deploy(
     await usdc.getAddress(),  // payment token
     deployer.address,          // fee collector
@@ -25,10 +25,10 @@ async function main() {
 
   // Deploy SnowRailMixer
   console.log("\n📦 Deploying SnowRailMixer...");
-  const Mixer = await ethers.getContractFactory("SnowRailMixer");
+  const Mixer = await hre.ethers.getContractFactory("SnowRailMixer");
   const mixer = await Mixer.deploy(
     await usdc.getAddress(),   // token
-    ethers.ZeroAddress,        // verifier (set later)
+    hre.ethers.ZeroAddress,        // verifier (set later)
     deployer.address           // owner
   );
   await mixer.waitForDeployment();
@@ -51,6 +51,10 @@ async function main() {
   // Verify on explorer
   console.log("\n📝 To verify contracts on Snowtrace:");
   console.log(`npx hardhat verify --network fuji ${await treasury.getAddress()} ${await usdc.getAddress()} ${deployer.address} ${deployer.address}`);
+  console.log("\n📝 Update your .env file with:");
+  console.log(`TREASURY_CONTRACT_ADDRESS=${await treasury.getAddress()}`);
+  console.log(`ASSET_ADDRESS=${await usdc.getAddress()}`);
+  console.log(`MIXER_CONTRACT_ADDRESS=${await mixer.getAddress()}`);
 }
 
 main()
