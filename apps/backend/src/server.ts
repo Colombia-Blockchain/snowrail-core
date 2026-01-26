@@ -2,7 +2,10 @@
  * SnowRail API Server
  * Production-ready backend with SENTINEL and YUKI endpoints
  * 
+ * USES @snowrail/sentinel PACKAGE (single source of truth)
+ * 
  * @author Colombia Blockchain
+ * @license MIT
  */
 
 import express, { Request, Response, NextFunction } from 'express';
@@ -10,6 +13,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { randomUUID } from 'crypto';
+
+// ============================================================================
+// IMPORT SENTINEL FROM PACKAGE
+// ============================================================================
+import { createSentinel, Sentinel, createX402Facilitator, X402FacilitatorAdapter } from '@snowrail/sentinel';
 
 // ============================================================================
 // CONFIGURATION
@@ -27,228 +35,58 @@ app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute
+  windowMs: 60 * 1000,
+  max: 100,
   message: { error: 'Rate limit exceeded' }
 });
 app.use('/v1/', limiter);
 
 // Request logging
-app.use((req: Request, res: Response, next: NextFunction) => {
+app.use((req: Request, _res: Response, next: NextFunction) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
 
 // ============================================================================
-// SENTINEL SERVICE
+// SENTINEL INSTANCE
 // ============================================================================
 
-interface SentinelResult {
-  url: string;
-  canPay: boolean;
-  trustScore: number;
-  confidence: number;
-  risk: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  decision: 'APPROVE' | 'DENY' | 'REVIEW' | 'CONDITIONAL';
-  checks: Array<{
-    type: string;
-    category: string;
-    passed: boolean;
-    score: number;
-  }>;
-  maxAmount?: number;
-  warnings?: string[];
-  blockedReasons?: string[];
-  timestamp: string;
-}
+const sentinel: Sentinel = createSentinel({
+  defaultMinScore: parseInt(process.env.SENTINEL_MIN_SCORE || '60'),
+  cacheEnabled: process.env.SENTINEL_CACHE !== 'false',
+  cacheTTL: parseInt(process.env.SENTINEL_CACHE_TTL || '300000'),
+  rateLimitEnabled: true,
+  rateLimitRequests: parseInt(process.env.SENTINEL_RATE_LIMIT || '100'),
+});
 
-async function validateUrl(url: string, amount?: number): Promise<SentinelResult> {
-  const startTime = Date.now();
-  
-  // Parse and validate URL
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(url);
-  } catch {
-    return {
-      url,
-      canPay: false,
-      trustScore: 0,
-      confidence: 1,
-      risk: 'CRITICAL',
-      decision: 'DENY',
-      checks: [],
-      blockedReasons: ['Invalid URL format'],
-      timestamp: new Date().toISOString()
-    };
-  }
+// Sentinel event logging
+sentinel.on('validation:start', (event) => {
+  console.log(`[SENTINEL] Validation started: ${event.data?.url || 'unknown'}`);
+});
 
-  const hostname = parsedUrl.hostname.toLowerCase();
-  
-  // Run checks
-  const checks = await runChecks(hostname, parsedUrl.toString());
-  
-  // Calculate score
-  const totalWeight = checks.reduce((sum, c) => sum + (c.weight || 1), 0);
-  const weightedScore = checks.reduce((sum, c) => sum + c.score * (c.weight || 1), 0);
-  const trustScore = Math.round(weightedScore / totalWeight);
-  
-  // Determine risk level
-  let risk: SentinelResult['risk'];
-  if (trustScore >= 80) risk = 'LOW';
-  else if (trustScore >= 60) risk = 'MEDIUM';
-  else if (trustScore >= 40) risk = 'HIGH';
-  else risk = 'CRITICAL';
+sentinel.on('validation:complete', (event) => {
+  const data = event.data as { url?: string; trustScore?: number; duration?: number };
+  console.log(`[SENTINEL] Validation complete: ${data.url} score=${data.trustScore} (${data.duration}ms)`);
+});
 
-  // Determine decision
-  let decision: SentinelResult['decision'];
-  if (trustScore >= 80) decision = 'APPROVE';
-  else if (trustScore >= 60) decision = 'CONDITIONAL';
-  else if (trustScore >= 40) decision = 'REVIEW';
-  else decision = 'DENY';
+sentinel.on('check:error', (event) => {
+  console.error(`[SENTINEL] Check error:`, event.data);
+});
 
-  // Collect warnings
-  const warnings: string[] = [];
-  const blockedReasons: string[] = [];
+// ============================================================================
+// X402 FACILITATOR INSTANCE
+// ============================================================================
 
-  for (const check of checks) {
-    if (!check.passed && check.score < 40) {
-      blockedReasons.push(`${check.type}: ${check.reason || 'Failed'}`);
-    } else if (!check.passed) {
-      warnings.push(`${check.type}: ${check.reason || 'Warning'}`);
-    }
-  }
+const chain = process.env.CHAIN || 'avalanche-fuji';
+const x402: X402FacilitatorAdapter = createX402Facilitator(chain);
 
-  // Calculate max recommended amount
-  let maxAmount: number | undefined;
-  if (trustScore >= 60) {
-    if (trustScore >= 90) maxAmount = 100000;
-    else if (trustScore >= 80) maxAmount = 50000;
-    else if (trustScore >= 70) maxAmount = 10000;
-    else maxAmount = 1000;
-  }
-
-  console.log(`[SENTINEL] Validated ${hostname} in ${Date.now() - startTime}ms: score=${trustScore}`);
-
-  return {
-    url,
-    canPay: trustScore >= 60,
-    trustScore,
-    confidence: 0.85,
-    risk,
-    decision,
-    checks: checks.map(c => ({
-      type: c.type,
-      category: c.category,
-      passed: c.passed,
-      score: c.score
-    })),
-    maxAmount,
-    warnings: warnings.length ? warnings : undefined,
-    blockedReasons: blockedReasons.length ? blockedReasons : undefined,
-    timestamp: new Date().toISOString()
-  };
-}
-
-async function runChecks(hostname: string, fullUrl: string): Promise<Array<{
-  type: string;
-  category: string;
-  passed: boolean;
-  score: number;
-  weight: number;
-  reason?: string;
-}>> {
-  const checks: Array<{
-    type: string;
-    category: string;
-    passed: boolean;
-    score: number;
-    weight: number;
-    reason?: string;
-  }> = [];
-
-  // Known trusted domains
-  const trustedDomains: Record<string, number> = {
-    'stripe.com': 95,
-    'api.stripe.com': 95,
-    'paypal.com': 92,
-    'github.com': 90,
-    'aws.amazon.com': 93,
-    'google.com': 95,
-    'cloudflare.com': 94,
-    'vercel.app': 85,
-    'netlify.app': 85,
-    'railway.app': 82
-  };
-
-  // Suspicious patterns
-  const suspiciousPatterns = [
-    'free-money', 'get-rich', 'crypto-earn', 'bitcoin-double',
-    'scam', 'phish', 'hack', 'crack', 'warez'
-  ];
-
-  const isTrusted = Object.keys(trustedDomains).some(d => hostname.includes(d));
-  const isSuspicious = suspiciousPatterns.some(p => hostname.includes(p) || fullUrl.includes(p));
-
-  // TLS Check
-  const tlsScore = fullUrl.startsWith('https://') 
-    ? (isTrusted ? 95 : (isSuspicious ? 20 : 75))
-    : 10;
-  
-  checks.push({
-    type: 'tls_certificate',
-    category: 'identity',
-    passed: tlsScore >= 60,
-    score: tlsScore,
-    weight: 1.5,
-    reason: tlsScore >= 60 ? undefined : 'Invalid or missing TLS'
+// Set contract addresses from env if available
+if (process.env.USDC_ADDRESS) {
+  x402.setContractAddresses({
+    token: process.env.USDC_ADDRESS,
+    treasury: process.env.TREASURY_ADDRESS,
+    mixer: process.env.MIXER_ADDRESS
   });
-
-  // DNS Check
-  const dnsScore = isTrusted ? 92 : (isSuspicious ? 15 : 70);
-  checks.push({
-    type: 'dns_security',
-    category: 'identity',
-    passed: dnsScore >= 60,
-    score: dnsScore,
-    weight: 1.2,
-    reason: dnsScore >= 60 ? undefined : 'DNS security issues'
-  });
-
-  // Infrastructure Check
-  const infraScore = isTrusted ? 90 : (isSuspicious ? 20 : 65);
-  checks.push({
-    type: 'cloud_provider',
-    category: 'infrastructure',
-    passed: infraScore >= 50,
-    score: infraScore,
-    weight: 1.0,
-    reason: infraScore >= 50 ? undefined : 'Unknown infrastructure'
-  });
-
-  // Security Headers Check
-  const headersScore = isTrusted ? 85 : (isSuspicious ? 15 : 55);
-  checks.push({
-    type: 'security_headers',
-    category: 'infrastructure',
-    passed: headersScore >= 50,
-    score: headersScore,
-    weight: 1.0,
-    reason: headersScore >= 50 ? undefined : 'Missing security headers'
-  });
-
-  // x402 Support Check
-  const x402Score = isTrusted ? 80 : (isSuspicious ? 0 : 40);
-  checks.push({
-    type: 'x402_support',
-    category: 'policy',
-    passed: x402Score >= 40,
-    score: x402Score,
-    weight: 1.3,
-    reason: x402Score >= 40 ? undefined : 'x402 protocol not detected'
-  });
-
-  return checks;
 }
 
 // ============================================================================
@@ -271,15 +109,10 @@ const conversations = new Map<string, YukiMessage[]>();
 async function processYukiChat(
   userId: string,
   message: string,
-  context?: { walletAddress?: string }
+  _context?: { walletAddress?: string }
 ): Promise<YukiMessage> {
-  // Get or create conversation
-  if (!conversations.has(userId)) {
-    conversations.set(userId, []);
-  }
-  const history = conversations.get(userId)!;
-
-  // Add user message
+  let history = conversations.get(userId) || [];
+  
   const userMsg: YukiMessage = {
     id: randomUUID(),
     role: 'user',
@@ -288,27 +121,30 @@ async function processYukiChat(
   };
   history.push(userMsg);
 
-  // Process intent
   const lower = message.toLowerCase();
   let responseContent: string;
   let metadata: YukiMessage['metadata'];
 
   // Payment intent
-  const payMatch = lower.match(/pay\s+\$?(\d+(?:\.\d+)?)\s+(?:to\s+)?(https?:\/\/[^\s]+)/i);
-  if (payMatch) {
-    const amount = parseFloat(payMatch[1]);
-    const recipient = payMatch[2];
-
-    // Run SENTINEL check
-    const trustResult = await validateUrl(recipient, amount);
+  if ((lower.includes('pay') || lower.includes('send')) && message.match(/\$?\d+/)) {
+    const amountMatch = message.match(/\$?(\d+(?:\.\d+)?)/);
+    const urlMatch = message.match(/https?:\/\/[^\s]+/);
     
-    metadata = {
-      toolCalls: [{ name: 'sentinel_check', parameters: { url: recipient } }],
-      toolResults: [{ name: 'sentinel_check', result: trustResult }]
-    };
+    const amount = amountMatch ? parseFloat(amountMatch[1]) : 0;
+    const recipient = urlMatch ? urlMatch[0] : 'unknown';
 
-    if (trustResult.canPay) {
-      responseContent = `Trust Analysis for ${recipient}:
+    if (!urlMatch) {
+      responseContent = 'Please provide a destination URL. Example: "Pay $100 to https://merchant.com"';
+    } else {
+      const trustResult = await sentinel.validate({ url: recipient, amount });
+      
+      metadata = {
+        toolCalls: [{ name: 'sentinel_check', parameters: { url: recipient } }],
+        toolResults: [{ name: 'sentinel_check', result: trustResult }]
+      };
+
+      if (trustResult.canPay) {
+        responseContent = `Trust Analysis for ${recipient}:
 
 Score: ${trustResult.trustScore}/100
 Risk: ${trustResult.risk}
@@ -318,8 +154,8 @@ Checks passed:
 ${trustResult.checks.filter(c => c.passed).map(c => `- ${c.type}: ${c.score}/100`).join('\n')}
 
 ${trustResult.warnings?.length ? `Warnings:\n${trustResult.warnings.map(w => `- ${w}`).join('\n')}\n\n` : ''}Confirm payment of $${amount} to ${recipient}? Reply "yes" to proceed.`;
-    } else {
-      responseContent = `Payment BLOCKED
+      } else {
+        responseContent = `Payment BLOCKED
 
 Trust Score: ${trustResult.trustScore}/100 (minimum: 60)
 Risk: ${trustResult.risk}
@@ -328,13 +164,14 @@ Reasons:
 ${trustResult.blockedReasons?.map(r => `- ${r}`).join('\n') || '- Trust score too low'}
 
 This destination failed security validation. Payment cannot proceed.`;
+      }
     }
   }
   // Trust check intent
   else if ((lower.includes('check') || lower.includes('trust') || lower.includes('safe')) && message.match(/https?:\/\//)) {
     const urlMatch = message.match(/https?:\/\/[^\s]+/);
     if (urlMatch) {
-      const trustResult = await validateUrl(urlMatch[0]);
+      const trustResult = await sentinel.validate({ url: urlMatch[0] });
       
       metadata = {
         toolCalls: [{ name: 'sentinel_check', parameters: { url: urlMatch[0] } }],
@@ -359,7 +196,6 @@ ${trustResult.blockedReasons?.length ? `\nBlocked Reasons:\n${trustResult.blocke
   }
   // Confirmation
   else if (lower.match(/^(yes|confirm|ok|proceed|si|sí)$/i)) {
-    // Find pending payment in history
     const pendingPayment = history.slice(-5).find(m => 
       m.role === 'assistant' && m.content.includes('Confirm payment')
     );
@@ -428,7 +264,6 @@ Commands:
 Example: "Pay $100 to https://api.stripe.com"`;
   }
 
-  // Create response
   const assistantMsg: YukiMessage = {
     id: randomUUID(),
     role: 'assistant',
@@ -438,9 +273,10 @@ Example: "Pay $100 to https://api.stripe.com"`;
   };
   history.push(assistantMsg);
 
-  // Limit history size
   if (history.length > 50) {
     conversations.set(userId, history.slice(-50));
+  } else {
+    conversations.set(userId, history);
   }
 
   return assistantMsg;
@@ -451,11 +287,18 @@ Example: "Pay $100 to https://api.stripe.com"`;
 // ============================================================================
 
 // Health check
-app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    sentinel: sentinel.getHealth()
+  });
 });
 
-// SENTINEL endpoints
+// ============================================================================
+// SENTINEL ENDPOINTS
+// ============================================================================
+
 app.post('/v1/sentinel/validate', async (req: Request, res: Response) => {
   try {
     const { url, amount } = req.body;
@@ -464,11 +307,11 @@ app.post('/v1/sentinel/validate', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    const result = await validateUrl(url, amount);
-    res.json(result);
+    const result = await sentinel.validate({ url, amount });
+    return res.json(result);
   } catch (error) {
     console.error('[SENTINEL] Error:', error);
-    res.status(500).json({ error: 'Validation failed' });
+    return res.status(500).json({ error: 'Validation failed' });
   }
 });
 
@@ -480,10 +323,11 @@ app.post('/v1/sentinel/can-pay', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    const result = await validateUrl(url);
-    res.json({ canPay: result.canPay, trustScore: result.trustScore });
+    const canPay = await sentinel.canPay(url);
+    const trust = await sentinel.trust(url);
+    return res.json({ canPay, trustScore: Math.round(trust * 100) });
   } catch (error) {
-    res.status(500).json({ error: 'Check failed' });
+    return res.status(500).json({ error: 'Check failed' });
   }
 });
 
@@ -495,14 +339,216 @@ app.get('/v1/sentinel/trust', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'URL query parameter is required' });
     }
 
-    const result = await validateUrl(url);
-    res.json({ trust: result.trustScore / 100, trustScore: result.trustScore, risk: result.risk });
+    const trust = await sentinel.trust(url);
+    const result = await sentinel.validate({ url });
+    return res.json({ 
+      trust, 
+      trustScore: result.trustScore, 
+      risk: result.risk 
+    });
   } catch (error) {
-    res.status(500).json({ error: 'Trust check failed' });
+    return res.status(500).json({ error: 'Trust check failed' });
   }
 });
 
-// YUKI endpoints
+app.post('/v1/sentinel/decide', async (req: Request, res: Response) => {
+  try {
+    const { url, amount, context } = req.body;
+
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    const decision = await sentinel.decide(url, amount || 0, context);
+    return res.json(decision);
+  } catch (error) {
+    return res.status(500).json({ error: 'Decision failed' });
+  }
+});
+
+// ============================================================================
+// X402 PAYMENT ENDPOINTS (E2E Flow)
+// ============================================================================
+
+// Store receipts for verification
+const receipts = new Map<string, { intentId: string; txHash: string; status: string; timestamp: Date }>();
+
+/**
+ * POST /v1/payments/x402/intent
+ * Create payment intent after trust validation
+ * Flow: validate -> intent -> sign -> execute -> confirm
+ */
+app.post('/v1/payments/x402/intent', async (req: Request, res: Response) => {
+  try {
+    const { url, amount, sender, recipient } = req.body;
+
+    if (!url || !amount || !sender || !recipient) {
+      return res.status(400).json({ 
+        error: 'Missing required fields: url, amount, sender, recipient' 
+      });
+    }
+
+    // Step 1: Validate with SENTINEL
+    const validation = await sentinel.validate({ url, amount });
+    
+    if (!validation.canPay) {
+      return res.status(403).json({
+        error: 'Payment blocked by SENTINEL',
+        trustScore: validation.trustScore,
+        risk: validation.risk,
+        reasons: validation.blockedReasons
+      });
+    }
+
+    // Step 2: Create payment intent (USDC only)
+    const usdcConfig = x402.getUSDCConfig();
+    const intent = await x402.createPaymentIntent({
+      url,
+      amount,
+      currency: 'USDC',
+      token: usdcConfig.tokenAddress,
+      chain,
+      sender,
+      recipient,
+      metadata: { validationId: validation.id }
+    });
+
+    console.log(`[X402] Intent created: ${intent.id} for ${amount} USDC`);
+
+    return res.json({
+      intent,
+      validation: {
+        id: validation.id,
+        trustScore: validation.trustScore,
+        decision: validation.decision
+      },
+      usdcConfig
+    });
+  } catch (error) {
+    console.error('[X402] Intent error:', error);
+    return res.status(500).json({ error: 'Failed to create payment intent' });
+  }
+});
+
+/**
+ * POST /v1/payments/x402/sign
+ * Get EIP-712 authorization data for signing
+ */
+app.post('/v1/payments/x402/sign', async (req: Request, res: Response) => {
+  try {
+    const { intentId } = req.body;
+
+    if (!intentId) {
+      return res.status(400).json({ error: 'intentId is required' });
+    }
+
+    const intent = await x402.getIntentStatus(intentId);
+    
+    if (intent.status === 'expired') {
+      return res.status(410).json({ error: 'Intent expired' });
+    }
+
+    const authorization = await x402.signAuthorization(intent);
+
+    console.log(`[X402] Authorization ready for intent: ${intentId}`);
+
+    return res.json({
+      intentId,
+      authorization,
+      message: 'Sign this data with your wallet to authorize the USDC transfer'
+    });
+  } catch (error) {
+    console.error('[X402] Sign error:', error);
+    return res.status(500).json({ error: 'Failed to prepare authorization' });
+  }
+});
+
+/**
+ * POST /v1/payments/x402/confirm
+ * Confirm payment execution and verify receipt
+ */
+app.post('/v1/payments/x402/confirm', async (req: Request, res: Response) => {
+  try {
+    const { intentId, txHash } = req.body;
+
+    if (!intentId || !txHash) {
+      return res.status(400).json({ error: 'intentId and txHash are required' });
+    }
+
+    const intent = await x402.getIntentStatus(intentId);
+
+    // Verify receipt
+    const receipt = {
+      intentId,
+      txHash,
+      status: 'confirmed' as const,
+      amount: intent.amount,
+      token: intent.token,
+      chain: intent.chain,
+      timestamp: new Date()
+    };
+
+    const verified = await x402.verifyReceipt(receipt);
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Receipt verification failed' });
+    }
+
+    // Store receipt
+    receipts.set(intentId, {
+      intentId,
+      txHash,
+      status: 'confirmed',
+      timestamp: new Date()
+    });
+
+    console.log(`[X402] Payment confirmed: ${intentId} tx=${txHash}`);
+
+    return res.json({
+      success: true,
+      receipt: {
+        intentId,
+        txHash,
+        amount: intent.amount,
+        currency: 'USDC',
+        chain: intent.chain,
+        sender: intent.sender,
+        recipient: intent.recipient,
+        status: 'confirmed',
+        timestamp: receipt.timestamp
+      }
+    });
+  } catch (error) {
+    console.error('[X402] Confirm error:', error);
+    return res.status(500).json({ error: 'Failed to confirm payment' });
+  }
+});
+
+/**
+ * GET /v1/payments/x402/status/:intentId
+ * Check intent/payment status
+ */
+app.get('/v1/payments/x402/status/:intentId', async (req: Request, res: Response) => {
+  try {
+    const { intentId } = req.params;
+
+    const intent = await x402.getIntentStatus(intentId);
+    const receipt = receipts.get(intentId);
+
+    return res.json({
+      intent,
+      receipt: receipt || null,
+      paid: receipt?.status === 'confirmed'
+    });
+  } catch (error) {
+    return res.status(404).json({ error: 'Intent not found' });
+  }
+});
+
+// ============================================================================
+// YUKI ENDPOINTS
+// ============================================================================
+
 app.post('/v1/yuki/chat', async (req: Request, res: Response) => {
   try {
     const { userId, message, walletAddress } = req.body;
@@ -512,10 +558,10 @@ app.post('/v1/yuki/chat', async (req: Request, res: Response) => {
     }
 
     const response = await processYukiChat(userId, message, { walletAddress });
-    res.json(response);
+    return res.json(response);
   } catch (error) {
     console.error('[YUKI] Error:', error);
-    res.status(500).json({ error: 'Chat processing failed' });
+    return res.status(500).json({ error: 'Chat processing failed' });
   }
 });
 
@@ -524,24 +570,26 @@ app.get('/v1/yuki/history/:userId', (req: Request, res: Response) => {
   const limit = parseInt(req.query.limit as string) || 50;
 
   const history = conversations.get(userId) || [];
-  res.json({ messages: history.slice(-limit) });
+  return res.json({ messages: history.slice(-limit) });
 });
 
 app.delete('/v1/yuki/history/:userId', (req: Request, res: Response) => {
   const { userId } = req.params;
   conversations.delete(userId);
-  res.json({ success: true });
+  return res.json({ success: true });
 });
 
-// 404 handler
-app.use((req: Request, res: Response) => {
-  res.status(404).json({ error: 'Not found' });
+// ============================================================================
+// ERROR HANDLERS
+// ============================================================================
+
+app.use((_req: Request, res: Response) => {
+  return res.status(404).json({ error: 'Not found' });
 });
 
-// Error handler
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error('[ERROR]', err);
-  res.status(500).json({ error: 'Internal server error' });
+  return res.status(500).json({ error: 'Internal server error' });
 });
 
 // ============================================================================
@@ -550,20 +598,36 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 
 app.listen(PORT, () => {
   console.log(`
-╔═══════════════════════════════════════════════╗
-║         SNOWRAIL API SERVER v2.0              ║
-╠═══════════════════════════════════════════════╣
-║  Port: ${PORT}                                    ║
-║  Environment: ${NODE_ENV.padEnd(28)}║
-║                                               ║
-║  Endpoints:                                   ║
-║  - POST /v1/sentinel/validate                 ║
-║  - POST /v1/sentinel/can-pay                  ║
-║  - GET  /v1/sentinel/trust?url=...            ║
-║  - POST /v1/yuki/chat                         ║
-║  - GET  /v1/yuki/history/:userId              ║
-║  - GET  /health                               ║
-╚═══════════════════════════════════════════════╝
+================================================================================
+  SNOWRAIL API SERVER v2.0
+================================================================================
+  Port: ${PORT}
+  Environment: ${NODE_ENV}
+  Chain: ${chain}
+  Sentinel: @snowrail/sentinel (package)
+  X402: USDC only (${x402.getUSDCConfig().tokenAddress || 'not configured'})
+
+  Endpoints:
+  
+  SENTINEL (Trust Validation):
+  - POST /v1/sentinel/validate
+  - POST /v1/sentinel/can-pay
+  - POST /v1/sentinel/decide
+  - GET  /v1/sentinel/trust?url=...
+
+  X402 (Payment Flow):
+  - POST /v1/payments/x402/intent    [validate -> create intent]
+  - POST /v1/payments/x402/sign      [get EIP-712 authorization]
+  - POST /v1/payments/x402/confirm   [verify receipt]
+  - GET  /v1/payments/x402/status/:id
+
+  YUKI (AI Assistant):
+  - POST /v1/yuki/chat
+  - GET  /v1/yuki/history/:userId
+
+  Health:
+  - GET  /health
+================================================================================
   `);
 });
 

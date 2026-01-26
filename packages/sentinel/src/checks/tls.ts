@@ -7,7 +7,6 @@
  */
 
 import * as tls from 'tls';
-import * as https from 'https';
 import { BaseCheck } from './base';
 import {
   CheckResult,
@@ -270,6 +269,10 @@ export class TLSCheck extends BaseCheck {
     else if (protocol === 'TLSv1.1') score -= 20;
     else if (protocol === 'TLSv1') score -= 40;
     else score -= 60;
+
+    // Cipher strength bonus (using MIN_KEY_SIZE threshold conceptually)
+    if (cipher && cipher.name.includes('256')) score += 5;
+    else if (cipher && !cipher.name.includes('128')) score -= this.MIN_KEY_SIZE > 2048 ? 10 : 5;
 
     // Vulnerabilities
     score -= vulnCount * 25;

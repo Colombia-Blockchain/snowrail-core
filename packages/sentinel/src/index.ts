@@ -39,6 +39,12 @@ export { Sentinel, createSentinel } from './core/engine';
 // Types
 export * from './types';
 
+// Ports (Hexagonal Architecture)
+export * from './ports';
+
+// Adapters (Port implementations)
+export * from './adapters';
+
 // Checks (for extension)
 export { BaseCheck } from './checks/base';
 export { TLSCheck } from './checks/tls';

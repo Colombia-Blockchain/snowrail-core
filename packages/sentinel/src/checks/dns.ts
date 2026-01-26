@@ -216,7 +216,7 @@ export class DNSCheck extends BaseCheck {
     }
   }
 
-  private async checkDNSSEC(domain: string): Promise<boolean> {
+  private async checkDNSSEC(_domain: string): Promise<boolean> {
     // Simplified DNSSEC check - in production, use a proper DNSSEC validator
     try {
       const resolver = new dns.Resolver();
@@ -230,7 +230,7 @@ export class DNSCheck extends BaseCheck {
     }
   }
 
-  private async getCAA(domain: string): Promise<CAARecord[]> {
+  private async getCAA(_domain: string): Promise<CAARecord[]> {
     try {
       // CAA records require special handling
       // For now, return empty - would need dns.resolveCaa in newer Node versions
@@ -241,8 +241,8 @@ export class DNSCheck extends BaseCheck {
   }
 
   private isCloudflareIP(ips: string[]): boolean {
-    // Simplified check - just check if IP starts with known Cloudflare ranges
-    const cloudflareStarts = ['104.16.', '104.17.', '104.18.', '104.19.', '104.20.', '104.21.', '104.22.', '104.23.', '104.24.', '104.25.', '104.26.', '104.27.', '172.64.', '172.65.', '172.66.', '172.67.'];
+    // Check if IP is in Cloudflare ranges
+    const cloudflareStarts = this.CLOUDFLARE_RANGES.map(range => range.split('.').slice(0, 2).join('.') + '.');
     return ips.some(ip => cloudflareStarts.some(start => ip.startsWith(start)));
   }
 

@@ -14,7 +14,6 @@ import {
   ValidationOptions,
   CheckResult,
   CheckType,
-  CheckCategory,
   RiskLevel,
   Decision,
   SentinelConfig,
