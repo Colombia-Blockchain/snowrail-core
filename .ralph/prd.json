@@ -1,0 +1,42 @@
+{
+  "project": "SnowRail Core v2 - Green Baseline Audit",
+  "version": "2.0.0",
+  "date": "2026-01-27",
+  "objective": "Achieve full green baseline: install/lint/typecheck/build/test PASS",
+  "scope": {
+    "packages": ["@snowrail/sentinel", "@snowrail/yuki"],
+    "apps": ["@snowrail/backend", "@snowrail/frontend"],
+    "infra": ["contracts", "root-config"]
+  },
+  "deliverables": [
+    "Curated repository (ZIP)",
+    "AUDIT_REPORT.md",
+    "CURATION_CHANGELOG.md", 
+    "TEST_REPORT.md",
+    "SECURITY_REVIEW.md"
+  ],
+  "gates": {
+    "technical": {
+      "pnpm_install": "PENDING",
+      "pnpm_lint": "PENDING",
+      "pnpm_typecheck": "PENDING",
+      "pnpm_build": "PENDING",
+      "pnpm_test": "PENDING"
+    },
+    "documentation": {
+      "audit_report": false,
+      "curation_changelog": false,
+      "test_report": false,
+      "security_review": false
+    }
+  },
+  "blockers": [
+    "B1: sentinel TS2352 Certificate cast",
+    "B2: yuki TS2352 ToolParameters cast",
+    "B3: frontend missing package.json",
+    "B4: eslint config issues",
+    "B5: turbo deprecation warning",
+    "B6: backend duplicates sentinel logic"
+  ],
+  "exit_signal": false
+}

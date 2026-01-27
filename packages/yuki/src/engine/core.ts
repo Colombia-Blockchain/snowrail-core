@@ -561,7 +561,7 @@ export class Yuki {
         function: {
           name: t.name,
           description: t.description,
-          parameters: t.parameters as Record<string, unknown>
+          parameters: t.parameters as unknown as Record<string, unknown>
         }
       }));
   }
@@ -589,7 +589,7 @@ export class Yuki {
             signal: AbortSignal.timeout(10000)
           });
           if (res.ok) return { toolCallId: '', success: true, data: await res.json() };
-        } catch {}
+        } catch (_e) { /* fallback to simulation */ }
 
         // Deterministic fallback
         return { toolCallId: '', success: true, data: this.simulateCheck(url) };
@@ -740,7 +740,7 @@ export class Yuki {
   }
 
   private emit(type: YukiEventType, data: unknown): void {
-    this.eventHandlers.get(type)?.forEach(h => { try { h({ type, timestamp: new Date(), data }); } catch {} });
+    this.eventHandlers.get(type)?.forEach(h => { try { h({ type, timestamp: new Date(), data }); } catch (_e) { /* ignore handler errors */ } });
   }
 }
 

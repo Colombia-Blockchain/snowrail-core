@@ -61,12 +61,13 @@ const sentinel: Sentinel = createSentinel({
 
 // Sentinel event logging
 sentinel.on('validation:start', (event) => {
-  console.log(`[SENTINEL] Validation started: ${event.data?.url || 'unknown'}`);
+  const data = event.data as { url?: string } | undefined;
+  console.log(`[SENTINEL] Validation started: ${data?.url || 'unknown'}`);
 });
 
 sentinel.on('validation:complete', (event) => {
-  const data = event.data as { url?: string; trustScore?: number; duration?: number };
-  console.log(`[SENTINEL] Validation complete: ${data.url} score=${data.trustScore} (${data.duration}ms)`);
+  const data = event.data as { url?: string; trustScore?: number; duration?: number } | undefined;
+  console.log(`[SENTINEL] Validation complete: ${data?.url} score=${data?.trustScore} (${data?.duration}ms)`);
 });
 
 sentinel.on('check:error', (event) => {

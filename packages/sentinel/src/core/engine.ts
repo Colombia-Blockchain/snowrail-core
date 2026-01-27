@@ -36,6 +36,12 @@ import { DNSCheck } from '../checks/dns';
 import { InfrastructureCheck } from '../checks/infrastructure';
 import { FIATCheck } from '../checks/fiat';
 import { PolicyCheck } from '../checks/policy';
+import { PhishingCheck } from '../checks/phishing';
+import { DomainAgeCheck } from '../checks/domain-age';
+import { ReputationCheck } from '../checks/reputation';
+import { AgentEndpointCheck } from '../checks/agent-endpoint';
+import { SmartContractCheck } from '../checks/smart-contract';
+import { AgentScamCheck } from '../checks/agent-scam';
 
 // ============================================================================
 // DEFAULT CONFIGURATION
@@ -55,18 +61,24 @@ const DEFAULT_CONFIG: SentinelConfig = {
   enabledChecks: [
     CheckType.TLS_CERTIFICATE,
     CheckType.DNS_SECURITY,
+    CheckType.DOMAIN_AGE,
     CheckType.CLOUD_PROVIDER,
     CheckType.SECURITY_HEADERS,
     CheckType.PAYMENT_PROCESSOR,
     CheckType.ERC8004_COMPLIANCE,
-    CheckType.X402_SUPPORT
+    CheckType.X402_SUPPORT,
+    CheckType.COMMUNITY_REPORTS,    // Phishing check
+    CheckType.HISTORICAL_SCORE      // Reputation check
   ],
   checkWeights: {
     [CheckType.TLS_CERTIFICATE]: 1.5,
     [CheckType.DNS_SECURITY]: 1.2,
+    [CheckType.DOMAIN_AGE]: 1.3,
     [CheckType.PAYMENT_PROCESSOR]: 1.3,
     [CheckType.ERC8004_COMPLIANCE]: 1.4,
-    [CheckType.X402_SUPPORT]: 1.4
+    [CheckType.X402_SUPPORT]: 1.4,
+    [CheckType.COMMUNITY_REPORTS]: 1.6,   // Phishing - high weight
+    [CheckType.HISTORICAL_SCORE]: 1.5     // Reputation - high weight
   },
   providers: {
     dns: {
@@ -121,6 +133,7 @@ export class Sentinel {
     // Identity checks
     this.registerCheck(new TLSCheck(this.config));
     this.registerCheck(new DNSCheck(this.config));
+    this.registerCheck(new DomainAgeCheck(this.config));
     
     // Infrastructure checks
     this.registerCheck(new InfrastructureCheck(this.config));
@@ -130,6 +143,15 @@ export class Sentinel {
     
     // Policy checks
     this.registerCheck(new PolicyCheck(this.config));
+    
+    // Reputation checks
+    this.registerCheck(new PhishingCheck(this.config));
+    this.registerCheck(new ReputationCheck(this.config));
+    
+    // Agent Economy checks (NEW)
+    this.registerCheck(new AgentEndpointCheck(this.config));
+    this.registerCheck(new SmartContractCheck(this.config));
+    this.registerCheck(new AgentScamCheck(this.config));
   }
 
   public registerCheck(check: BaseCheck): void {

@@ -217,8 +217,8 @@ export class TLSCheck extends BaseCheck {
 
   private parseCertificate(cert: tls.PeerCertificate): CertificateInfo {
     return {
-      subject: cert.subject as Record<string, string>,
-      issuer: cert.issuer as Record<string, string>,
+      subject: cert.subject as unknown as Record<string, string>,
+      issuer: cert.issuer as unknown as Record<string, string>,
       validFrom: new Date(cert.valid_from),
       validTo: new Date(cert.valid_to),
       serialNumber: cert.serialNumber,
