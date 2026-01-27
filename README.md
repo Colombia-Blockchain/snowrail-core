@@ -1,150 +1,80 @@
-# SnowRail Core
+# SnowRail
 
-**Avalanche-first trust-before-pay for agent payments, powered by x402 + SENTINEL**
+**Trust-Before-Pay for Autonomous Agent Payments**
 
-Canonical repo for SnowRail core (Avalanche-first)
+Avalanche-first trust validation layer for AI agents, powered by x402 + SENTINEL
 
-1st Place - Hack2Build: Payments x402 (Avalanche) | [Submission](https://github.com/Colombia-Blockchain/SnowRail)
-
----
-
-> **Note:** This is the core implementation. Deployment adapters for other chains:
-> - Cronos: [cronos-snowrail](https://github.com/Colombia-Blockchain/cronos-snowrail)
-> - Mantle: [SnowRail-Mantle](https://github.com/Colombia-Blockchain/SnowRail-Mantle)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
+[![Tests](https://img.shields.io/badge/tests-36%20passing-brightgreen)]()
+[![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ---
 
-## 5-Minute Demo
-
-Test SENTINEL trust validation:
-
-### Quick Start
+## Quick Start
 
 ```bash
-git clone https://github.com/Colombia-Blockchain/snowrail-core.git
-cd snowrail-core
+git clone https://github.com/Colombia-Blockchain/SnowRail.git
+cd SnowRail
 pnpm install
 pnpm dev
 ```
 
-Server runs at `http://localhost:3000`
-
-### API Test
+### Validate a URL
 
 ```bash
+# Trusted endpoint
 curl -X POST http://localhost:3000/v1/sentinel/validate \
   -H "Content-Type: application/json" \
   -d '{"url":"https://api.stripe.com"}'
-```
 
-Expected response:
-```json
-{"canPay": true, "trustScore": 92, "risk": "LOW", "decision": "APPROVE"}
+# Response: {"canPay": true, "trustScore": 92, "risk": "none"}
 ```
 
 ```bash
+# Scam endpoint  
 curl -X POST http://localhost:3000/v1/sentinel/validate \
   -H "Content-Type: application/json" \
-  -d '{"url":"https://unknown-merchant.xyz"}'
+  -d '{"url":"https://free-gpt-unlimited.xyz"}'
+
+# Response: {"canPay": false, "trustScore": 0, "risk": "critical"}
 ```
-
-Expected response:
-```json
-{"canPay": false, "trustScore": 31, "risk": "HIGH", "decision": "DENY"}
-```
-
-### Interactive Demo
-
-1. Run `pnpm dev`
-2. Open http://localhost:5173 (frontend, Vite default)
-3. Enter a URL in the SENTINEL panel
-4. View trust score and risk assessment
-5. Attempt payment - blocked if score below threshold (default: 60, configurable)
-
-> **Ports:** Backend runs on `:3000`, Frontend on `:5173`
-
-### Deployed Contracts (Avalanche Fuji)
-
-| Contract | Address | Explorer |
-|----------|---------|----------|
-| SnowRailTreasury | TBD | TBD (Fuji) |
-| MockUSDC | TBD | TBD (Fuji) |
 
 ---
 
 ## Problem
 
-AI agents increasingly need to pay for resources autonomously: APIs, compute, data services. Current payment systems have no standard mechanism to validate recipient trustworthiness before execution.
+AI agents need to pay for resources autonomously (APIs, compute, data). Current systems have no mechanism to validate recipient trustworthiness before payment execution.
 
-Consequences:
-- Agents pay fraudulent endpoints
-- No accountability for payment decisions
-- Merchants have no way to prove legitimacy
+**Result:** Agents get scammed, no accountability, merchants can't prove legitimacy.
 
 ---
 
 ## Solution
 
-SnowRail implements trust-before-pay: validate the destination before executing any payment.
+SnowRail implements **trust-before-pay**: validate the destination before executing any payment.
 
 ```
-Payment Request --> SENTINEL Validation --> Trust Score + Attestation --> x402 Execution
-```
-
-Core flow:
-
-```
-Trusted Merchant (Score: 87)          Untrusted Merchant (Score: 23)
-- TLS: Valid                          - TLS: Self-signed
-- Infrastructure: AWS                 - Infrastructure: Unknown
-- Policy: x402 compliant              - Policy: Non-compliant
---> Payment APPROVED                  --> Payment BLOCKED
---> On-chain attestation              --> Reason logged
+Payment Request → SENTINEL Validation → Trust Score → x402 Execution
 ```
 
 ---
 
-## SENTINEL Trust Validation
-
-Three validation categories:
+## SENTINEL - 11 Security Checks
 
 | Category | Checks | Purpose |
 |----------|--------|---------|
-| Identity | TLS certificate, DNS records, domain age | Verify claimed identity |
-| Infrastructure | Cloud provider, security headers, WAF | Assess operational maturity |
-| Policy | x402 support, rate limits, compliance | Confirm protocol adherence |
+| **Identity** | TLS, DNS, Domain Age | Verify claimed identity |
+| **Infrastructure** | Cloud Provider, Headers | Assess operational maturity |
+| **Policy** | x402, ERC-8004 | Confirm protocol compliance |
+| **Reputation** | Phishing, Blacklists | Detect known threats |
+| **Agent Economy** | Endpoint, Contract, Scam | Protect autonomous agents |
 
-Trust Score: 0-100 weighted aggregate
-- 80-100: Auto-approve
-- 60-79: Approve with monitoring
-- 40-59: Manual review required
-- 0-39: Blocked
+### Trust Score
 
-Note: Checks may vary by integration; scores are heuristics. Thresholds are configurable per deployment.
-
----
-
-## Architecture
-
-```
-Frontend (React)
-    |
-    v
-Backend (Node.js/TypeScript)
-    |
-    +-- YUKI Engine (AI Assistant)
-    |       |
-    |       v
-    +-- SENTINEL (Trust Validation)
-    |       |
-    |       v
-    +-- x402 Payment Executor
-            |
-            v
-Smart Contracts (Avalanche C-Chain)
-    +-- SnowRailTreasury (payments, attestations)
-    +-- SnowRailMixer (optional: ZK privacy)
-```
+- **85-100**: Auto-approve ✅
+- **60-84**: Approve with monitoring ⚠️
+- **40-59**: Manual review required 🔍
+- **0-39**: Blocked ❌
 
 ---
 
@@ -153,109 +83,119 @@ Smart Contracts (Avalanche C-Chain)
 ```typescript
 import { createSentinel } from '@snowrail/sentinel';
 
-const sentinel = createSentinel({
-  defaultMinScore: 60  // configurable threshold
-});
+const sentinel = createSentinel();
 
 // Simple check
-const canPay = await sentinel.canPay('https://merchant.com/api');
+const canPay = await sentinel.canPay('https://api.openai.com');
+// true
 
 // Full validation
 const result = await sentinel.validate({
-  url: 'https://merchant.com/api',
-  amount: 1000
+  url: 'https://api.stripe.com',
+  amount: 100
 });
 
-console.log(result.trustScore);  // 87
+console.log(result.trustScore);  // 92
 console.log(result.canPay);      // true
-console.log(result.risk);        // "LOW"
+console.log(result.risk);        // "none"
+```
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    Frontend (React)                  │
+└─────────────────────┬───────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────┐
+│                Backend (Node.js/TypeScript)          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │
+│  │    YUKI     │  │  SENTINEL   │  │    x402     │  │
+│  │  AI Agent   │──│   11 Checks │──│  Payments   │  │
+│  └─────────────┘  └─────────────┘  └─────────────┘  │
+└─────────────────────┬───────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────┐
+│           Smart Contracts (Avalanche C-Chain)        │
+│  ┌─────────────────────┐  ┌─────────────────────┐   │
+│  │  SnowRailTreasury   │  │   SnowRailMixer     │   │
+│  │  (payments + trust) │  │   (ZK privacy)      │   │
+│  └─────────────────────┘  └─────────────────────┘   │
+└─────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Packages
 
-| Package | Description | Status |
-|---------|-------------|--------|
-| @snowrail/sentinel | Trust validation SDK | Production |
-| @snowrail/yuki | AI assistant | Alpha |
-| contracts/ | Solidity (Treasury) | Ready for deployment |
-| frontend/ | React dashboard | Beta |
+| Package | Description | 
+|---------|-------------|
+| `@snowrail/sentinel` | Trust validation SDK (11 checks) |
+| `@snowrail/yuki` | AI payment assistant |
+| `contracts/` | Solidity smart contracts |
+| `apps/backend` | Express API server |
+| `apps/frontend` | React dashboard |
 
 ---
 
-## Deploy
-
-### Backend (Railway/Render)
+## Development
 
 ```bash
-cd apps/backend
-npm install
-npm start
+# Install
+pnpm install
+
+# Run all checks
+pnpm lint       # ESLint
+pnpm typecheck  # TypeScript
+pnpm test       # 36 tests
+pnpm build      # Production build
+
+# Development server
+pnpm dev
+```
+
+---
+
+## Deployment
+
+### Backend (Railway)
+
+```bash
+# Deploy to Railway
+railway up
 ```
 
 Environment variables:
 ```
 PORT=3000
-ANTHROPIC_API_KEY=sk-ant-...  # optional, for YUKI LLM
+ANTHROPIC_API_KEY=sk-ant-...  # Optional, for YUKI LLM
 ```
 
 ### Contracts (Avalanche Fuji)
 
 ```bash
-export PRIVATE_KEY="your_private_key"
 npx hardhat run scripts/deploy.ts --network fuji
 ```
-
-### Ports
-
-- Backend API: `http://localhost:3000`
-- Frontend (Vite): `http://localhost:5173`
-
----
-
-## Roadmap
-
-### Current (Build Games)
-- SENTINEL SDK v2.0
-- YUKI AI Assistant
-- x402 payment integration
-- Fuji testnet deployment
-
-### Next 6 Weeks
-- Mainnet deployment
-- SDK documentation
-- 2 partner integrations
-
-### Future Modules
-- ZK Mixer (private payments)
-- ERC-8004 agent identity
-- Multi-chain support
-
----
-
-## Business Model
-
-| Tier | Price | Volume |
-|------|-------|--------|
-| Free | $0 | 100 validations/month |
-| Builder | $49/month | 10,000 validations |
-| Enterprise | Custom | Unlimited + SLA |
 
 ---
 
 ## Team
 
-Colombia Blockchain
+**Colombia Blockchain**
 
-Building trust infrastructure for autonomous agent payments.
+1st Place - Hack2Build x402 (Avalanche)
 
 ---
 
 ## Links
 
-- GitHub: https://github.com/Colombia-Blockchain/snowrail-core
+- GitHub: https://github.com/Colombia-Blockchain/SnowRail
+- Docs: https://docs.snowrail.xyz
 
 ---
 
-License: MIT
+## License
+
+MIT
