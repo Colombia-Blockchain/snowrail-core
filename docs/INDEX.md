@@ -1,7 +1,7 @@
 # SnowRail Core - Documentation Index
 
-**Version:** 2.0.0
-**Last Updated:** 2026-01-27
+**Version:** 2.0.1
+**Last Updated:** 2026-01-28
 
 ---
 
@@ -23,7 +23,14 @@
 | [architecture/MULTICHAIN_DESIGN.md](./architecture/MULTICHAIN_DESIGN.md) | Multichain extension design and chain registry |
 | [standing/DECISIONS.md](./standing/DECISIONS.md) | Product and technical decisions |
 
-### API & Contracts
+### Smart Contracts
+
+| Document | Purpose |
+|----------|---------|
+| [contracts/DEPLOYMENT.md](./contracts/DEPLOYMENT.md) | **NEW** Complete deployment guide for Fuji testnet |
+| [contracts/INTEGRATION.md](./contracts/INTEGRATION.md) | **NEW** How to integrate contracts into your app |
+
+### API & Specifications
 
 | Document | Purpose |
 |----------|---------|
@@ -67,6 +74,21 @@ docs/
 │       ├── Chain Registry Service
 │       ├── Multichain Adapter Pattern
 │       └── Adding New Chains
+│
+├── contracts/                         <- NEW: Smart contract docs
+│   ├── DEPLOYMENT.md                 <- Deployment guide
+│   │   ├── Prerequisites
+│   │   ├── Deployment Commands
+│   │   ├── Contract Verification
+│   │   ├── Contract Details
+│   │   └── Troubleshooting
+│   │
+│   └── INTEGRATION.md                <- Integration guide
+│       ├── Contract ABIs
+│       ├── Common Operations
+│       ├── Role Management
+│       ├── Events
+│       └── Error Handling
 │
 ├── core/
 │   └── TRU_VALIDATION.md             <- API contract
@@ -129,6 +151,14 @@ docs/
 - **Backend API**: `apps/backend/src/server.ts`
 - **Smart Contracts**: `contracts/`
 
+### Deployed Contracts (Fuji)
+
+| Contract | Address |
+|----------|---------|
+| MockUSDC | `0x7435BB56D89Cf26A03fabaE6fA36b66295a2A676` |
+| SnowRailTreasury | `0x79fa1E26938763Db1AD3d6d40bf79f3a23aE60dd` |
+| SnowRailMixer | `0xE05DC7789038C669652bF3BfE4Fb684b7F420fCD` |
+
 ### Configuration
 
 - **Root package.json**: `./package.json`
@@ -147,6 +177,8 @@ docs/
 
 | Date | Changes |
 |------|---------|
+| 2026-01-28 | **NEW** Added contracts/DEPLOYMENT.md and contracts/INTEGRATION.md |
+| 2026-01-28 | Deployed and verified all contracts on Fuji testnet |
 | 2026-01-27 | Added DEV_IMPLEMENTATION_GUIDE.md, TASK_BACKLOG.md, MULTICHAIN_DESIGN.md |
 | 2026-01-27 | Updated STATE.md with current validation |
 | 2026-01-26 | Initial documentation (ARCHITECTURE_DIAGRAMS.md, TRU_VALIDATION.md) |
@@ -154,4 +186,4 @@ docs/
 ---
 
 *Index maintained by: Architecture Team*
-*Last review: 2026-01-27*
+*Last review: 2026-01-28*
