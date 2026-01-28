@@ -1,8 +1,8 @@
 # SnowRail Core - State Document
 
-**Version:** 2.0.0
-**Date:** 2026-01-27 (Updated)
-**Branch:** main
+**Version:** 2.0.1
+**Date:** 2026-01-28 (Updated)
+**Branch:** feat/contracts
 **Commit:** 883dd1f
 
 ---
@@ -66,10 +66,10 @@ apps/
     src/server.ts        <- Imports from @snowrail/sentinel
   frontend/              <- React UI - PARTIAL (needs integration)
 
-contracts/               <- Solidity - GREEN (not deployed to Fuji)
-  SnowRailTreasury.sol   <- 596 lines
-  SnowRailMixer.sol      <- 346 lines
-  MockUSDC.sol           <- Test token
+contracts/               <- Solidity - GREEN (DEPLOYED to Fuji)
+  SnowRailTreasury.sol   <- 596 lines (0x79fa1E26938763Db1AD3d6d40bf79f3a23aE60dd)
+  SnowRailMixer.sol      <- 346 lines (0xE05DC7789038C669652bF3BfE4Fb684b7F420fCD)
+  MockUSDC.sol           <- Test token (0x7435BB56D89Cf26A03fabaE6fA36b66295a2A676)
 ```
 
 ---
@@ -90,12 +90,29 @@ contracts/               <- Solidity - GREEN (not deployed to Fuji)
 
 ---
 
+## Deployed Contracts (Fuji Testnet)
+
+| Contract | Address | Verified |
+|----------|---------|----------|
+| MockUSDC | `0x7435BB56D89Cf26A03fabaE6fA36b66295a2A676` | [Verified](https://testnet.snowtrace.io/address/0x7435BB56D89Cf26A03fabaE6fA36b66295a2A676#code) |
+| SnowRailTreasury | `0x79fa1E26938763Db1AD3d6d40bf79f3a23aE60dd` | [Verified](https://testnet.snowtrace.io/address/0x79fa1E26938763Db1AD3d6d40bf79f3a23aE60dd#code) |
+| SnowRailMixer | `0xE05DC7789038C669652bF3BfE4Fb684b7F420fCD` | [Verified](https://testnet.snowtrace.io/address/0xE05DC7789038C669652bF3BfE4Fb684b7F420fCD#code) |
+
+Deployer: `0x22f6F000609d52A0b0efCD4349222cd9d70716Ba`
+
+**Roles Configured:**
+- SENTINEL_ROLE: Granted to deployer
+- OPERATOR_ROLE: Granted to deployer
+- ADMIN_ROLE: Granted to deployer
+
+---
+
 ## Gaps for Production
 
 | ID | Type | Description | Priority |
 |----|------|-------------|----------|
 | GAP-1 | CONFIG | Package.json exports order (warnings) | LOW |
-| GAP-2 | INFRA | Contracts not deployed to Fuji | CRITICAL |
+| ~~GAP-2~~ | ~~INFRA~~ | ~~Contracts not deployed to Fuji~~ | ~~RESOLVED~~ |
 | GAP-3 | TEST | No E2E tests (only unit tests) | HIGH |
 | GAP-4 | DOCS | Missing Postman/curl collection | MEDIUM |
 | GAP-5 | ARCH | Missing eslint boundary rules | HIGH |
@@ -133,7 +150,7 @@ The original `standing-report.md` documented issues that have been resolved:
 
 ### Critical Path for Demo
 
-1. **TASK-001**: Deploy contracts to Fuji
+1. ~~**TASK-001**: Deploy contracts to Fuji~~ **COMPLETE**
 2. **TASK-002**: Connect backend to Treasury contract
 3. **TASK-003**: Create E2E test script
 
@@ -165,14 +182,22 @@ pnpm lint                    # Run linter
 pnpm --filter @snowrail/sentinel build
 pnpm --filter @snowrail/sentinel test
 
-# Contracts
+# Contracts - Full Deploy
 pnpm hardhat compile
 pnpm hardhat test
 pnpm hardhat run scripts/deploy.ts --network fuji
+
+# Contracts - Individual Deploy (Recommended)
+pnpm hardhat run scripts/deploy-usdc.ts --network fuji
+pnpm hardhat run scripts/deploy-treasury.ts --network fuji
+pnpm hardhat run scripts/setup-roles.ts --network fuji
+
+# Verify on Snowtrace
+pnpm hardhat verify --network fuji <CONTRACT_ADDRESS> [CONSTRUCTOR_ARGS...]
 ```
 
 ---
 
-*Document validated: 2026-01-27*
+*Document validated: 2026-01-28*
 *Validator: Claude Code*
-*Status: GREEN with minor gaps*
+*Status: GREEN - Contracts deployed to Fuji*

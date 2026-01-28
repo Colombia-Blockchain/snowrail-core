@@ -1,12 +1,17 @@
 /**
  * SnowRail API Server
  * Production-ready backend with SENTINEL and YUKI endpoints
- * 
+ *
  * USES @snowrail/sentinel PACKAGE (single source of truth)
- * 
+ *
  * @author Colombia Blockchain
  * @license MIT
  */
+
+// Load environment variables from .env file in project root
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
@@ -18,6 +23,11 @@ import { randomUUID } from 'crypto';
 // IMPORT SENTINEL FROM PACKAGE
 // ============================================================================
 import { createSentinel, Sentinel, createX402Facilitator, X402FacilitatorAdapter } from '@snowrail/sentinel';
+
+// ============================================================================
+// IMPORT TREASURY SERVICE
+// ============================================================================
+import { getTreasuryService, TreasuryService, PaymentResult } from './services/treasury';
 
 // ============================================================================
 // CONFIGURATION
@@ -82,13 +92,32 @@ const chain = process.env.CHAIN || 'avalanche-fuji';
 const x402: X402FacilitatorAdapter = createX402Facilitator(chain);
 
 // Set contract addresses from env if available
-if (process.env.USDC_ADDRESS) {
+if (process.env.ASSET_ADDRESS) {
   x402.setContractAddresses({
-    token: process.env.USDC_ADDRESS,
-    treasury: process.env.TREASURY_ADDRESS,
-    mixer: process.env.MIXER_ADDRESS
+    token: process.env.ASSET_ADDRESS,
+    treasury: process.env.TREASURY_CONTRACT_ADDRESS,
+    mixer: process.env.MIXER_CONTRACT_ADDRESS
   });
 }
+
+// ============================================================================
+// TREASURY SERVICE INSTANCE
+// ============================================================================
+let treasuryService: TreasuryService | null = null;
+
+// Initialize Treasury Service (async)
+(async () => {
+  try {
+    if (process.env.TREASURY_CONTRACT_ADDRESS && process.env.PRIVATE_KEY) {
+      treasuryService = await getTreasuryService();
+      console.log('[Treasury] Service initialized successfully');
+    } else {
+      console.log('[Treasury] Service not configured (missing TREASURY_CONTRACT_ADDRESS or PRIVATE_KEY)');
+    }
+  } catch (error) {
+    console.error('[Treasury] Failed to initialize:', error);
+  }
+})();
 
 // ============================================================================
 // YUKI SERVICE
@@ -467,61 +496,225 @@ app.post('/v1/payments/x402/sign', async (req: Request, res: Response) => {
 /**
  * POST /v1/payments/x402/confirm
  * Confirm payment execution and verify receipt
+ *
+ * If txHash is provided: verifies existing transaction
+ * If signature is provided: executes new X402 payment on-chain
  */
 app.post('/v1/payments/x402/confirm', async (req: Request, res: Response) => {
   try {
-    const { intentId, txHash } = req.body;
+    const { intentId, txHash, signature } = req.body;
 
-    if (!intentId || !txHash) {
-      return res.status(400).json({ error: 'intentId and txHash are required' });
+    if (!intentId) {
+      return res.status(400).json({ error: 'intentId is required' });
     }
 
     const intent = await x402.getIntentStatus(intentId);
 
-    // Verify receipt
-    const receipt = {
-      intentId,
-      txHash,
-      status: 'confirmed' as const,
-      amount: intent.amount,
-      token: intent.token,
-      chain: intent.chain,
-      timestamp: new Date()
-    };
-
-    const verified = await x402.verifyReceipt(receipt);
-
-    if (!verified) {
-      return res.status(400).json({ error: 'Receipt verification failed' });
-    }
-
-    // Store receipt
-    receipts.set(intentId, {
-      intentId,
-      txHash,
-      status: 'confirmed',
-      timestamp: new Date()
-    });
-
-    console.log(`[X402] Payment confirmed: ${intentId} tx=${txHash}`);
-
-    return res.json({
-      success: true,
-      receipt: {
+    // Mode 1: Verify existing transaction (legacy flow)
+    if (txHash && !signature) {
+      const receipt = {
         intentId,
         txHash,
+        status: 'confirmed' as const,
         amount: intent.amount,
-        currency: 'USDC',
+        token: intent.token,
         chain: intent.chain,
-        sender: intent.sender,
-        recipient: intent.recipient,
-        status: 'confirmed',
-        timestamp: receipt.timestamp
+        timestamp: new Date()
+      };
+
+      const verified = await x402.verifyReceipt(receipt);
+
+      if (!verified) {
+        return res.status(400).json({ error: 'Receipt verification failed' });
       }
+
+      receipts.set(intentId, {
+        intentId,
+        txHash,
+        status: 'confirmed',
+        timestamp: new Date()
+      });
+
+      console.log(`[X402] Payment verified: ${intentId} tx=${txHash}`);
+
+      return res.json({
+        success: true,
+        txHash,
+        explorerUrl: `${process.env.EXPLORER_URL || 'https://testnet.snowtrace.io'}/tx/${txHash}`,
+        status: 'confirmed',
+        receipt: {
+          intentId,
+          txHash,
+          amount: intent.amount,
+          currency: 'USDC',
+          chain: intent.chain,
+          sender: intent.sender,
+          recipient: intent.recipient,
+          status: 'confirmed',
+          timestamp: new Date()
+        }
+      });
+    }
+
+    // Mode 2: Execute X402 payment on-chain (new flow)
+    if (signature) {
+      if (!treasuryService) {
+        return res.status(503).json({
+          error: 'Treasury service not available',
+          message: 'On-chain payments are not configured. Please set TREASURY_CONTRACT_ADDRESS and PRIVATE_KEY.'
+        });
+      }
+
+      // Check if intent is expired
+      if (intent.status === 'expired') {
+        return res.status(410).json({ error: 'Payment intent has expired' });
+      }
+
+      console.log(`[X402] Executing on-chain payment for intent: ${intentId}`);
+
+      // Get nonce for sender
+      const nonce = await treasuryService.getNonce(intent.sender);
+
+      // Prepare X402 payment struct
+      // Generate resourceHash from intent id
+      const resourceHashBytes = Buffer.from(intent.id).slice(0, 32).toString('hex').padStart(64, '0');
+      const payment = {
+        from: intent.sender,
+        to: intent.recipient,
+        value: BigInt(Math.floor(intent.amount * 1e6)), // Convert to USDC decimals (6)
+        validAfter: 0,
+        validBefore: Math.floor(Date.now() / 1000) + 300, // 5 minutes from now
+        nonce: nonce,
+        resourceHash: `0x${resourceHashBytes}`
+      };
+
+      // Execute payment
+      const result: PaymentResult = await treasuryService.executeX402Payment(payment, signature);
+
+      if (!result.success) {
+        console.error(`[X402] Payment failed: ${result.errorCode} - ${result.error}`);
+
+        // Map error codes to HTTP status
+        const statusMap: Record<string, number> = {
+          INSUFFICIENT_BALANCE: 400,
+          INSUFFICIENT_ALLOWANCE: 400,
+          INVALID_SIGNATURE: 400,
+          PAYMENT_EXPIRED: 410,
+          TRUST_TOO_LOW: 403,
+          CONTRACT_PAUSED: 503,
+          INSUFFICIENT_GAS: 400,
+          NETWORK_ERROR: 503,
+        };
+
+        return res.status(statusMap[result.errorCode || ''] || 500).json({
+          error: result.error,
+          errorCode: result.errorCode
+        });
+      }
+
+      // Store receipt
+      receipts.set(intentId, {
+        intentId,
+        txHash: result.txHash,
+        status: 'confirmed',
+        timestamp: new Date()
+      });
+
+      console.log(`[X402] Payment executed: ${intentId} tx=${result.txHash}`);
+
+      return res.json({
+        success: true,
+        txHash: result.txHash,
+        explorerUrl: result.explorerUrl,
+        status: 'confirmed',
+        receipt: {
+          intentId,
+          txHash: result.txHash,
+          amount: intent.amount,
+          currency: 'USDC',
+          chain: intent.chain,
+          sender: intent.sender,
+          recipient: intent.recipient,
+          status: 'confirmed',
+          timestamp: new Date(),
+          blockNumber: result.receipt?.blockNumber,
+          gasUsed: result.receipt?.gasUsed?.toString()
+        }
+      });
+    }
+
+    // No txHash or signature provided
+    return res.status(400).json({
+      error: 'Either txHash or signature is required',
+      message: 'Provide txHash to verify existing transaction, or signature to execute X402 payment'
     });
   } catch (error) {
     console.error('[X402] Confirm error:', error);
     return res.status(500).json({ error: 'Failed to confirm payment' });
+  }
+});
+
+/**
+ * POST /v1/payments/x402/execute
+ * Execute a direct payment on-chain (requires USDC approval)
+ */
+app.post('/v1/payments/x402/execute', async (req: Request, res: Response) => {
+  try {
+    const { to, amount, resourceHash } = req.body;
+
+    if (!to || !amount) {
+      return res.status(400).json({ error: 'to and amount are required' });
+    }
+
+    if (!treasuryService) {
+      return res.status(503).json({
+        error: 'Treasury service not available',
+        message: 'On-chain payments are not configured'
+      });
+    }
+
+    // Validate with SENTINEL first
+    const validation = await sentinel.validate({ url: to, amount });
+
+    if (!validation.canPay) {
+      return res.status(403).json({
+        error: 'Payment blocked by SENTINEL',
+        trustScore: validation.trustScore,
+        risk: validation.risk,
+        reasons: validation.blockedReasons
+      });
+    }
+
+    console.log(`[X402] Executing direct payment: ${amount} USDC to ${to}`);
+
+    // Execute payment
+    const amountInUSDC = BigInt(Math.floor(amount * 1e6));
+    const hash = resourceHash || '0x' + '0'.repeat(64);
+
+    const result = await treasuryService.pay(to, amountInUSDC, hash);
+
+    if (!result.success) {
+      return res.status(400).json({
+        error: result.error,
+        errorCode: result.errorCode
+      });
+    }
+
+    console.log(`[X402] Direct payment executed: tx=${result.txHash}`);
+
+    return res.json({
+      success: true,
+      txHash: result.txHash,
+      explorerUrl: result.explorerUrl,
+      status: 'confirmed',
+      validation: {
+        trustScore: validation.trustScore,
+        decision: validation.decision
+      }
+    });
+  } catch (error) {
+    console.error('[X402] Execute error:', error);
+    return res.status(500).json({ error: 'Failed to execute payment' });
   }
 });
 
@@ -598,6 +791,9 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 // ============================================================================
 
 app.listen(PORT, () => {
+  const treasuryAddr = process.env.TREASURY_CONTRACT_ADDRESS || 'not configured';
+  const usdcAddr = process.env.ASSET_ADDRESS || x402.getUSDCConfig().tokenAddress || 'not configured';
+
   console.log(`
 ================================================================================
   SNOWRAIL API SERVER v2.0
@@ -605,11 +801,14 @@ app.listen(PORT, () => {
   Port: ${PORT}
   Environment: ${NODE_ENV}
   Chain: ${chain}
+
   Sentinel: @snowrail/sentinel (package)
-  X402: USDC only (${x402.getUSDCConfig().tokenAddress || 'not configured'})
+  Treasury: ${treasuryAddr}
+  USDC: ${usdcAddr}
+  On-chain: ${treasuryService ? 'ENABLED' : 'DISABLED (mock mode)'}
 
   Endpoints:
-  
+
   SENTINEL (Trust Validation):
   - POST /v1/sentinel/validate
   - POST /v1/sentinel/can-pay
@@ -619,7 +818,8 @@ app.listen(PORT, () => {
   X402 (Payment Flow):
   - POST /v1/payments/x402/intent    [validate -> create intent]
   - POST /v1/payments/x402/sign      [get EIP-712 authorization]
-  - POST /v1/payments/x402/confirm   [verify receipt]
+  - POST /v1/payments/x402/confirm   [execute X402 payment on-chain]
+  - POST /v1/payments/x402/execute   [direct payment on-chain]
   - GET  /v1/payments/x402/status/:id
 
   YUKI (AI Assistant):

@@ -4,6 +4,9 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+// Use CommonJS tsconfig for Hardhat
+process.env.TS_NODE_PROJECT = "./tsconfig.hardhat.json";
+
 const PRIVATE_KEY = process.env.PRIVATE_KEY || "0x" + "0".repeat(64);
 const SNOWTRACE_API_KEY = process.env.SNOWTRACE_API_KEY || "";
 
