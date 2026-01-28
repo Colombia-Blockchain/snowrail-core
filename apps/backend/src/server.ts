@@ -1,12 +1,17 @@
 /**
  * SnowRail API Server
  * Production-ready backend with SENTINEL and YUKI endpoints
- * 
+ *
  * USES @snowrail/sentinel PACKAGE (single source of truth)
- * 
+ *
  * @author Colombia Blockchain
  * @license MIT
  */
+
+// Load environment variables from .env file in project root
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
