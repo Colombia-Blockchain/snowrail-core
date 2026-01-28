@@ -1,9 +1,9 @@
 # SnowRail Core - State Document
 
-**Version:** 2.0.1
+**Version:** 2.0.2
 **Date:** 2026-01-28 (Updated)
-**Branch:** feat/contracts
-**Commit:** 883dd1f
+**Branch:** main
+**Commit:** (pending)
 
 ---
 
@@ -84,8 +84,8 @@ contracts/               <- Solidity - GREEN (DEPLOYED to Fuji)
 | M3 | Tru Validation + 5 policies | **COMPLETE** | docs/core/TRU_VALIDATION.md |
 | M4 | Hexagonal architecture | **PARTIAL** | Ports/adapters exist, missing eslint boundaries |
 | M5 | X402 Facilitator adapter | **COMPLETE** | adapters/x402.ts implemented |
-| M6 | E2E Flow | **PARTIAL** | Endpoints exist, contracts not deployed |
-| M7 | SDKization | **PARTIAL** | Basic READMEs, missing curl examples |
+| M6 | E2E Flow | **COMPLETE** | E2E test script + endpoints + contracts deployed |
+| M7 | SDKization | **COMPLETE** | README updated, scripts documented |
 | M8 | Extensibility (8004) | **PARTIAL** | Port defined, adapter is stub |
 
 ---
@@ -113,10 +113,10 @@ Deployer: `0x22f6F000609d52A0b0efCD4349222cd9d70716Ba`
 |----|------|-------------|----------|
 | GAP-1 | CONFIG | Package.json exports order (warnings) | LOW |
 | ~~GAP-2~~ | ~~INFRA~~ | ~~Contracts not deployed to Fuji~~ | ~~RESOLVED~~ |
-| GAP-3 | TEST | No E2E tests (only unit tests) | HIGH |
+| ~~GAP-3~~ | ~~TEST~~ | ~~No E2E tests (only unit tests)~~ | ~~RESOLVED~~ |
 | GAP-4 | DOCS | Missing Postman/curl collection | MEDIUM |
 | GAP-5 | ARCH | Missing eslint boundary rules | HIGH |
-| GAP-6 | CONFIG | USDC addresses hardcoded | MEDIUM |
+| ~~GAP-6~~ | ~~CONFIG~~ | ~~USDC addresses hardcoded~~ | ~~RESOLVED (config/networks.ts)~~ |
 
 ---
 
@@ -151,19 +151,27 @@ The original `standing-report.md` documented issues that have been resolved:
 ### Critical Path for Demo
 
 1. ~~**TASK-001**: Deploy contracts to Fuji~~ **COMPLETE**
-2. **TASK-002**: Connect backend to Treasury contract
-3. **TASK-003**: Create E2E test script
+2. ~~**TASK-002**: Connect backend to Treasury contract~~ **COMPLETE**
+3. ~~**TASK-003**: Create E2E test script~~ **COMPLETE**
+4. ~~**TASK-009**: Centralize configuration~~ **COMPLETE**
+5. ~~**TASK-010**: Update documentation~~ **COMPLETE**
 
 ### Quality Improvements
 
-4. **TASK-004**: Configure ESLint boundaries
-5. **TASK-005**: Fix package.json exports order
-6. **TASK-013**: Add integration tests
+6. **TASK-004**: Configure ESLint boundaries
+7. **TASK-005**: Fix package.json exports order
+8. **TASK-013**: Add integration tests
+
+### Future Enhancements
+
+9. **TASK-006**: Deploy to Avalanche Mainnet
+10. **TASK-011**: Security audit
+11. **TASK-012**: Rate limiting improvements
 
 ### Documentation
 
-7. **TASK-007**: Complete @snowrail/sentinel README
-8. **TASK-008**: Create Postman collection
+12. **TASK-007**: Complete @snowrail/sentinel README
+13. **TASK-008**: Create Postman collection
 
 See `docs/TASK_BACKLOG.md` for full task breakdown.
 
@@ -177,27 +185,59 @@ pnpm dev                     # Start backend in dev mode
 pnpm build                   # Build all packages
 pnpm test                    # Run all tests
 pnpm lint                    # Run linter
+pnpm e2e                     # Run E2E test on Fuji (NEW)
 
 # Specific packages
 pnpm --filter @snowrail/sentinel build
 pnpm --filter @snowrail/sentinel test
+pnpm backend:dev             # Start backend only
+pnpm frontend:dev            # Start frontend only
 
 # Contracts - Full Deploy
-pnpm hardhat compile
-pnpm hardhat test
-pnpm hardhat run scripts/deploy.ts --network fuji
+pnpm contracts:compile       # Compile contracts
+pnpm contracts:test          # Test contracts
+pnpm contracts:deploy        # Deploy to Fuji
 
 # Contracts - Individual Deploy (Recommended)
-pnpm hardhat run scripts/deploy-usdc.ts --network fuji
-pnpm hardhat run scripts/deploy-treasury.ts --network fuji
-pnpm hardhat run scripts/setup-roles.ts --network fuji
+pnpm contracts:deploy:usdc       # Deploy MockUSDC
+pnpm contracts:deploy:treasury   # Deploy Treasury
+pnpm contracts:setup:roles       # Setup roles
 
 # Verify on Snowtrace
-pnpm hardhat verify --network fuji <CONTRACT_ADDRESS> [CONSTRUCTOR_ARGS...]
+pnpm contracts:verify --network fuji
 ```
+
+---
+
+## Recent Updates (2026-01-28)
+
+### Issue #3: E2E Test Automation (COMPLETED)
+- Created `scripts/e2e-test.ts` with complete payment flow testing
+- Added `pnpm e2e` command
+- Created comprehensive documentation in `scripts/README.md`
+- Tests all 5 steps: SENTINEL → Intent → Sign → Confirm → Verify
+- Visual output with colors and tables using chalk and cli-table3
+
+### Issue #4: Configuration & Documentation (COMPLETED)
+- Centralized network configuration in `config/networks.ts`
+- Created comprehensive `.env.example` with all variables documented
+- Updated main `README.md` with:
+  - Quick Start guide for Fuji
+  - E2E Test section
+  - Roles & Wallets documentation
+  - Contract Verification guide
+  - Troubleshooting section
+- Updated `docs/standing/STATE.md` with current status
+- Removed hardcoded addresses across codebase
+
+### Key Improvements
+- No more hardcoded contract addresses
+- Clear documentation for new developers
+- Automated E2E testing for quality assurance
+- Demo-ready project state
 
 ---
 
 *Document validated: 2026-01-28*
 *Validator: Claude Code*
-*Status: GREEN - Contracts deployed to Fuji*
+*Status: GREEN - E2E Tests + Configuration Complete*

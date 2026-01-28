@@ -43,7 +43,9 @@
     "contracts:deploy:usdc": "hardhat run scripts/deploy-usdc.ts --network fuji",
     "contracts:deploy:treasury": "hardhat run scripts/deploy-treasury.ts --network fuji",
     "contracts:setup:roles": "hardhat run scripts/setup-roles.ts --network fuji",
-    "contracts:verify": "hardhat verify --network fuji"
+    "contracts:verify": "hardhat verify --network fuji",
+    "check:config": "tsx scripts/check-config.ts",
+    "e2e": "tsx scripts/e2e-test.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^4.0.0",
@@ -51,12 +53,17 @@
     "@types/node": "^20.11.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
+    "axios": "^1.6.5",
+    "chalk": "^4.1.2",
+    "cli-table3": "^0.6.3",
     "dotenv": "^16.4.5",
     "eslint": "^8.56.0",
+    "ethers": "^6.10.0",
     "hardhat": "^2.22.18",
     "husky": "^8.0.3",
     "lint-staged": "^15.2.0",
     "prettier": "^3.2.0",
+    "tsx": "^4.7.0",
     "turbo": "^1.11.0",
     "typescript": "^5.3.3"
   },
