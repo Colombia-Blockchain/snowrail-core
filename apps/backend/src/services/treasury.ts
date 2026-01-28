@@ -69,6 +69,7 @@ const ERC20_ABI = [
   "function allowance(address owner, address spender) external view returns (uint256)",
   "function approve(address spender, uint256 amount) external returns (bool)",
   "function decimals() external view returns (uint8)",
+  "function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, bytes signature) external",
 ];
 
 // ============================================================================
@@ -207,34 +208,30 @@ export class TreasuryService {
     console.log(`[Treasury] Value: ${payment.value}`);
 
     try {
-      // Convert values to proper types
-      const paymentTuple = {
-        from: payment.from,
-        to: payment.to,
-        value: BigInt(payment.value),
-        validAfter: payment.validAfter,
-        validBefore: payment.validBefore,
-        nonce: BigInt(payment.nonce),
-        resourceHash: payment.resourceHash,
-      };
-
       // Check if payment is expired
       const now = Math.floor(Date.now() / 1000);
       if (now > payment.validBefore) {
         return this.createErrorResult("PAYMENT_EXPIRED", "Payment intent has expired");
       }
 
-      // Estimate gas first to catch errors
-      const gasEstimate = await this.treasury!.executeX402Payment.estimateGas(
-        paymentTuple,
-        signature
-      );
-      console.log(`[Treasury] Gas estimate: ${gasEstimate}`);
+      console.log(`[Treasury] Using transferWithAuthorization (EIP-3009)`);
+      console.log(`[Treasury] Nonce: ${payment.nonce}`);
+      console.log(`[Treasury] ValidAfter: ${payment.validAfter}`);
+      console.log(`[Treasury] ValidBefore: ${payment.validBefore}`);
 
-      // Execute transaction
-      const tx = await this.treasury!.executeX402Payment(paymentTuple, signature, {
-        gasLimit: gasEstimate * 120n / 100n, // Add 20% buffer
-      });
+      // Use transferWithAuthorization directly (gasless EIP-3009)
+      const tx = await this.usdc!.transferWithAuthorization(
+        payment.from,
+        payment.to,
+        BigInt(payment.value),
+        payment.validAfter,
+        payment.validBefore,
+        payment.nonce,
+        signature,
+        {
+          gasLimit: 200000, // Sufficient for transferWithAuthorization
+        }
+      );
 
       console.log(`[Treasury] Tx submitted: ${tx.hash}`);
 
