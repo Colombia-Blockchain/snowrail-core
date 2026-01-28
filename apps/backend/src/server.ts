@@ -318,10 +318,11 @@ Example: "Pay $100 to https://api.stripe.com"`;
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ 
-    status: 'healthy', 
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
-    sentinel: sentinel.getHealth()
+    sentinel: sentinel.getHealth(),
+    treasury: treasuryService ? 'enabled' : 'disabled'
   });
 });
 
@@ -572,21 +573,35 @@ app.post('/v1/payments/x402/confirm', async (req: Request, res: Response) => {
 
       console.log(`[X402] Executing on-chain payment for intent: ${intentId}`);
 
-      // Get nonce for sender
-      const nonce = await treasuryService.getNonce(intent.sender);
+      // Get the stored authorization from the intent
+      const storedIntent = await x402.getIntentStatus(intentId);
 
-      // Prepare X402 payment struct
-      // Generate resourceHash from intent id
+      if (!storedIntent.authorization || !storedIntent.authorization.message) {
+        return res.status(400).json({
+          error: 'Authorization not found',
+          message: 'Please call /sign endpoint first to generate authorization'
+        });
+      }
+
+      const authMessage = storedIntent.authorization.message;
+
+      // Prepare X402 payment struct using the EXACT values from authorization
       const resourceHashBytes = Buffer.from(intent.id).slice(0, 32).toString('hex').padStart(64, '0');
       const payment = {
-        from: intent.sender,
-        to: intent.recipient,
-        value: BigInt(Math.floor(intent.amount * 1e6)), // Convert to USDC decimals (6)
-        validAfter: 0,
-        validBefore: Math.floor(Date.now() / 1000) + 300, // 5 minutes from now
-        nonce: nonce,
+        from: authMessage.from as string,
+        to: authMessage.to as string,
+        value: authMessage.value as string | bigint,
+        validAfter: Number(authMessage.validAfter),
+        validBefore: Number(authMessage.validBefore),
+        nonce: authMessage.nonce as string | bigint,
         resourceHash: `0x${resourceHashBytes}`
       };
+
+      console.log(`[X402] Using authorization values:`);
+      console.log(`[X402]   from: ${payment.from}`);
+      console.log(`[X402]   to: ${payment.to}`);
+      console.log(`[X402]   value: ${payment.value}`);
+      console.log(`[X402]   nonce: ${payment.nonce}`);
 
       // Execute payment
       const result: PaymentResult = await treasuryService.executeX402Payment(payment, signature);
