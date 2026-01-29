@@ -1,6 +1,6 @@
 # SnowRail Core - State Document
 
-**Version:** 2.0.2
+**Version:** 2.0.3
 **Date:** 2026-01-28 (Updated)
 **Branch:** main
 **Commit:** (pending)
@@ -12,9 +12,9 @@
 | Operation | Status | Notes |
 |-----------|--------|-------|
 | pnpm install | **PASS** | 761 packages |
-| pnpm build | **PASS** | 4/4 packages (warnings on exports order) |
+| pnpm build | **PASS** | 4/4 packages (zero warnings) |
 | pnpm test | **PASS** | 6/6 tests passing |
-| pnpm lint | **PASS** | ESLint configured |
+| pnpm lint | **PASS** | ESLint + boundaries configured |
 | pnpm typecheck | **PASS** | No TS errors |
 
 ### Build Output
@@ -28,11 +28,7 @@
 
 ### Warnings (Non-blocking)
 
-```
-Warning: "types" condition in package.json exports comes after "import"/"require"
-Affected: packages/sentinel/package.json, packages/yuki/package.json
-Fix: Reorder exports to put "types" first
-```
+No warnings - all build issues resolved ✓
 
 ---
 
@@ -82,7 +78,7 @@ contracts/               <- Solidity - GREEN (DEPLOYED to Fuji)
 | M1 | Core Green (Sentinel compiles) | **COMPLETE** | `pnpm build` passes |
 | M2 | Backend as adapter | **COMPLETE** | server.ts imports @snowrail/sentinel |
 | M3 | Tru Validation + 5 policies | **COMPLETE** | docs/core/TRU_VALIDATION.md |
-| M4 | Hexagonal architecture | **PARTIAL** | Ports/adapters exist, missing eslint boundaries |
+| M4 | Hexagonal architecture | **COMPLETE** | Ports/adapters + ESLint boundaries enforced |
 | M5 | X402 Facilitator adapter | **COMPLETE** | adapters/x402.ts implemented |
 | M6 | E2E Flow | **COMPLETE** | E2E test script + endpoints + contracts deployed |
 | M7 | SDKization | **COMPLETE** | README updated, scripts documented |
@@ -111,11 +107,11 @@ Deployer: `0x22f6F000609d52A0b0efCD4349222cd9d70716Ba`
 
 | ID | Type | Description | Priority |
 |----|------|-------------|----------|
-| GAP-1 | CONFIG | Package.json exports order (warnings) | LOW |
+| ~~GAP-1~~ | ~~CONFIG~~ | ~~Package.json exports order (warnings)~~ | ~~RESOLVED~~ |
 | ~~GAP-2~~ | ~~INFRA~~ | ~~Contracts not deployed to Fuji~~ | ~~RESOLVED~~ |
 | ~~GAP-3~~ | ~~TEST~~ | ~~No E2E tests (only unit tests)~~ | ~~RESOLVED~~ |
 | GAP-4 | DOCS | Missing Postman/curl collection | MEDIUM |
-| GAP-5 | ARCH | Missing eslint boundary rules | HIGH |
+| ~~GAP-5~~ | ~~ARCH~~ | ~~Missing eslint boundary rules~~ | ~~RESOLVED~~ |
 | ~~GAP-6~~ | ~~CONFIG~~ | ~~USDC addresses hardcoded~~ | ~~RESOLVED (config/networks.ts)~~ |
 
 ---
@@ -158,8 +154,8 @@ The original `standing-report.md` documented issues that have been resolved:
 
 ### Quality Improvements
 
-6. **TASK-004**: Configure ESLint boundaries
-7. **TASK-005**: Fix package.json exports order
+6. ~~**TASK-004**: Configure ESLint boundaries~~ **COMPLETE**
+7. ~~**TASK-005**: Fix package.json exports order~~ **COMPLETE**
 8. **TASK-013**: Add integration tests
 
 ### Future Enhancements
@@ -211,6 +207,32 @@ pnpm contracts:verify --network fuji
 
 ## Recent Updates (2026-01-28)
 
+### Issue #8 & #9: Quality & Architecture Enforcement (COMPLETED)
+
+**Issue #8: Architecture Enforcement**
+- Installed and configured `eslint-plugin-boundaries@^5.3.1`
+- Added ESLint rules to enforce hexagonal architecture:
+  - Blocks `packages/*` from importing `apps/*`
+  - Blocks `core/*` from importing `adapters/*`
+  - Allows `apps/*` to import `packages/*`
+  - Allows `adapters/*` to import `core/*`
+- Created comprehensive documentation: `docs/architecture/BOUNDARIES.md`
+- All existing code passes boundary validation (`pnpm lint` - zero errors)
+- **GAP-5 RESOLVED**: Architecture boundaries now automated
+
+**Issue #9: Package Quality & Build Warnings**
+- Fixed `package.json` exports order in `@snowrail/sentinel` and `@snowrail/yuki`
+- Moved `"types"` field before `"import"/"require"` in exports
+- Build now completes with zero warnings
+- Improved TypeScript type resolution in IDEs
+- **GAP-1 RESOLVED**: Clean build output achieved
+
+**Key Improvements:**
+- Clean builds (zero warnings)
+- Automated architecture validation
+- Better developer experience with IDE type resolution
+- Production-ready code quality
+
 ### Issue #3: E2E Test Automation (COMPLETED)
 - Created `scripts/e2e-test.ts` with complete payment flow testing
 - Added `pnpm e2e` command
@@ -240,4 +262,4 @@ pnpm contracts:verify --network fuji
 
 *Document validated: 2026-01-28*
 *Validator: Claude Code*
-*Status: GREEN - E2E Tests + Configuration Complete*
+*Status: GREEN - Architecture Enforcement + Zero Build Warnings*
