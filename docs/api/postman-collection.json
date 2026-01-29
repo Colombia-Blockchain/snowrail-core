@@ -1,0 +1,384 @@
+{
+  "info": {
+    "name": "SnowRail API Collection",
+    "description": "Complete API collection for SnowRail Trust Layer and X402 Payment Protocol.\n\n## Setup\n1. Import this collection into Postman\n2. Configure environment variables (see Environment tab)\n3. Run requests in order for E2E flow\n\n## Environment Variables\n- `baseUrl`: API base URL (e.g., http://localhost:3000)\n- `walletAddress`: Your wallet address\n- `recipientAddress`: Recipient wallet address\n- `intentId`: Auto-set from /intent response\n- `signature`: Your EIP-712 signature\n\n## E2E Flow\n1. SENTINEL / Validate URL\n2. X402 Payment / Create Intent\n3. X402 Payment / Get Authorization\n4. Sign with your wallet (external)\n5. X402 Payment / Confirm Payment\n6. X402 Payment / Check Status",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "item": [
+    {
+      "name": "SENTINEL",
+      "item": [
+        {
+          "name": "Validate URL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has canPay field\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('canPay');",
+                  "    pm.expect(jsonData).to.have.property('trustScore');",
+                  "    pm.expect(jsonData).to.have.property('risk');",
+                  "});",
+                  "",
+                  "pm.test(\"Trust score is a number\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.trustScore).to.be.a('number');",
+                  "    pm.expect(jsonData.trustScore).to.be.within(0, 100);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://api.stripe.com\",\n  \"amount\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/sentinel/validate",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "sentinel", "validate"]
+            },
+            "description": "Validate if a URL is safe to pay. Runs comprehensive security checks including TLS, DNS, infrastructure analysis.\n\n**Use Cases:**\n- Pre-payment validation\n- Agent trust scoring\n- Phishing detection\n\n**Returns:**\n- `canPay`: Boolean indicating if payment is safe\n- `trustScore`: 0-100 score\n- `risk`: low/medium/high/critical\n- `checks`: Array of individual check results"
+          },
+          "response": [
+            {
+              "name": "Success - Trusted URL",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"val_1738195200000_abc123\",\n  \"url\": \"https://api.stripe.com\",\n  \"timestamp\": \"2026-01-29T10:00:00.000Z\",\n  \"duration\": 234,\n  \"canPay\": true,\n  \"trustScore\": 92,\n  \"confidence\": 0.95,\n  \"risk\": \"low\",\n  \"decision\": \"approve\",\n  \"checks\": [\n    {\n      \"type\": \"tls_certificate\",\n      \"passed\": true,\n      \"score\": 95,\n      \"details\": {\n        \"grade\": \"A\",\n        \"protocol\": \"TLSv1.3\"\n      }\n    }\n  ],\n  \"maxAmount\": 50000\n}"
+            },
+            {
+              "name": "Blocked - Suspicious URL",
+              "status": "OK",
+              "code": 200,
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"val_1738195200000_xyz789\",\n  \"url\": \"http://suspicious-site.xyz\",\n  \"timestamp\": \"2026-01-29T10:00:00.000Z\",\n  \"duration\": 156,\n  \"canPay\": false,\n  \"trustScore\": 25,\n  \"risk\": \"critical\",\n  \"decision\": \"deny\",\n  \"blockedReasons\": [\n    \"URL does not use HTTPS\",\n    \"Trust score below minimum threshold\"\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "X402 Payment",
+      "item": [
+        {
+          "name": "1. Create Intent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has intent\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('intent');",
+                  "    pm.expect(jsonData.intent).to.have.property('id');",
+                  "    ",
+                  "    // Save intentId for next requests",
+                  "    pm.environment.set('intentId', jsonData.intent.id);",
+                  "});",
+                  "",
+                  "pm.test(\"Payment approved by SENTINEL\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.validation.decision).to.eql('approve');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://api.merchant.com\",\n  \"amount\": 100,\n  \"sender\": \"{{walletAddress}}\",\n  \"recipient\": \"{{recipientAddress}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/payments/x402/intent",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "payments", "x402", "intent"]
+            },
+            "description": "Create a payment intent after trust validation.\n\n**Step 1 of X402 Flow**\n\nThis endpoint:\n1. Validates URL with SENTINEL\n2. Blocks payment if trust score is too low\n3. Creates a 5-minute payment intent\n4. Returns USDC configuration\n\n**Auto-saves `intentId` to environment for next steps.**"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"intent\": {\n    \"id\": \"intent_1738195200000_abc123\",\n    \"status\": \"pending\",\n    \"amount\": 100,\n    \"currency\": \"USDC\",\n    \"token\": \"0x7435BB56D89Cf26A03fabaE6fA36b66295a2A676\",\n    \"chain\": \"avalanche-fuji\",\n    \"sender\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7\",\n    \"recipient\": \"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199\",\n    \"expiresAt\": \"2026-01-29T10:05:00.000Z\"\n  },\n  \"validation\": {\n    \"id\": \"val_1738195200000_xyz789\",\n    \"trustScore\": 92,\n    \"decision\": \"approve\"\n  }\n}"
+            },
+            {
+              "name": "Blocked by SENTINEL",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"error\": \"Payment blocked by SENTINEL\",\n  \"trustScore\": 25,\n  \"risk\": \"critical\",\n  \"reasons\": [\n    \"URL does not use HTTPS\",\n    \"Trust score below minimum threshold\"\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "2. Get Authorization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has authorization data\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('authorization');",
+                  "    pm.expect(jsonData.authorization).to.have.property('domain');",
+                  "    pm.expect(jsonData.authorization).to.have.property('types');",
+                  "    pm.expect(jsonData.authorization).to.have.property('message');",
+                  "});",
+                  "",
+                  "console.log('✓ Authorization data ready for signing');",
+                  "console.log('Sign with: wallet.signTypedData(domain, types, message)');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intentId\": \"{{intentId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/payments/x402/sign",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "payments", "x402", "sign"]
+            },
+            "description": "Get EIP-712 authorization data for signing.\n\n**Step 2 of X402 Flow**\n\n**Next Steps:**\n1. Copy the authorization data from response\n2. Sign with your wallet (ethers.js example):\n   ```javascript\n   const signature = await wallet.signTypedData(\n     authorization.domain,\n     authorization.types,\n     authorization.message\n   );\n   ```\n3. Paste signature into environment variable `signature`\n4. Run \"Confirm Payment\" request"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"intentId\": \"intent_1738195200000_abc123\",\n  \"authorization\": {\n    \"domain\": {\n      \"name\": \"USD Coin\",\n      \"version\": \"2\",\n      \"chainId\": 43113,\n      \"verifyingContract\": \"0x7435BB56D89Cf26A03fabaE6fA36b66295a2A676\"\n    },\n    \"types\": {\n      \"TransferWithAuthorization\": [\n        { \"name\": \"from\", \"type\": \"address\" },\n        { \"name\": \"to\", \"type\": \"address\" },\n        { \"name\": \"value\", \"type\": \"uint256\" },\n        { \"name\": \"validAfter\", \"type\": \"uint256\" },\n        { \"name\": \"validBefore\", \"type\": \"uint256\" },\n        { \"name\": \"nonce\", \"type\": \"bytes32\" }\n      ]\n    },\n    \"message\": {\n      \"from\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7\",\n      \"to\": \"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199\",\n      \"value\": \"100000000\",\n      \"validAfter\": 0,\n      \"validBefore\": 1738195500,\n      \"nonce\": \"0x3132333435363738393031323334353637383930313233343536373839303132\"\n    }\n  },\n  \"message\": \"Sign this data with your wallet to authorize the USDC transfer\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "3. Confirm Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Payment successful\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.success).to.be.true;",
+                  "    pm.expect(jsonData).to.have.property('txHash');",
+                  "    pm.expect(jsonData).to.have.property('explorerUrl');",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "console.log('✓ Payment confirmed!');",
+                  "console.log('Transaction:', jsonData.txHash);",
+                  "console.log('Explorer:', jsonData.explorerUrl);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intentId\": \"{{intentId}}\",\n  \"signature\": \"{{signature}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/payments/x402/confirm",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "payments", "x402", "confirm"]
+            },
+            "description": "Execute X402 payment on-chain.\n\n**Step 3 of X402 Flow (Final Step)**\n\n**Prerequisites:**\n1. Must have `intentId` from Step 1\n2. Must have `signature` from signing Step 2 authorization\n3. Wallet must have sufficient USDC balance\n4. Wallet must have approved Treasury contract\n\n**Returns:**\n- Transaction hash\n- Block explorer URL\n- Payment receipt"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true,\n  \"txHash\": \"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890\",\n  \"explorerUrl\": \"https://testnet.snowtrace.io/tx/0xabcdef...\",\n  \"status\": \"confirmed\",\n  \"receipt\": {\n    \"intentId\": \"intent_1738195200000_abc123\",\n    \"txHash\": \"0xabcdef...\",\n    \"amount\": 100,\n    \"currency\": \"USDC\",\n    \"chain\": \"avalanche-fuji\",\n    \"sender\": \"0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7\",\n    \"recipient\": \"0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199\",\n    \"status\": \"confirmed\",\n    \"timestamp\": \"2026-01-29T10:02:34.567Z\",\n    \"blockNumber\": 12345678,\n    \"gasUsed\": \"65432\"\n  }\n}"
+            },
+            {
+              "name": "Insufficient Balance",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"error\": \"Insufficient USDC balance\",\n  \"errorCode\": \"INSUFFICIENT_BALANCE\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "4. Check Status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response has intent and receipt\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('intent');",
+                  "    pm.expect(jsonData).to.have.property('paid');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/v1/payments/x402/status/{{intentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "payments", "x402", "status", "{{intentId}}"]
+            },
+            "description": "Check the status of a payment intent.\n\n**Returns:**\n- Intent details\n- Payment receipt (if paid)\n- Boolean `paid` flag"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"intent\": {\n    \"id\": \"intent_1738195200000_abc123\",\n    \"status\": \"pending\",\n    \"amount\": 100,\n    \"currency\": \"USDC\",\n    \"expiresAt\": \"2026-01-29T10:05:00.000Z\"\n  },\n  \"receipt\": {\n    \"intentId\": \"intent_1738195200000_abc123\",\n    \"txHash\": \"0xabcdef...\",\n    \"status\": \"confirmed\"\n  },\n  \"paid\": true\n}"
+            }
+          ]
+        }
+      ],
+      "description": "X402 Payment Protocol endpoints for secure USDC payments.\n\n## Flow\n1. **Create Intent** - Start payment flow\n2. **Get Authorization** - Get EIP-712 data\n3. **Sign** - Sign with wallet (external)\n4. **Confirm Payment** - Execute on-chain\n5. **Check Status** - Verify payment"
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Server is healthy\", function () {",
+                  "    const jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.status).to.eql('healthy');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check API server health status.\n\n**Returns:**\n- Server status\n- SENTINEL health\n- Treasury availability"
+          },
+          "response": [
+            {
+              "name": "Healthy",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"status\": \"healthy\",\n  \"timestamp\": \"2026-01-29T10:00:00.000Z\",\n  \"sentinel\": {\n    \"healthy\": true,\n    \"cacheSize\": 42,\n    \"rateLimitRemaining\": 98\n  },\n  \"treasury\": \"enabled\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "walletAddress",
+      "value": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb7",
+      "type": "string"
+    },
+    {
+      "key": "recipientAddress",
+      "value": "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199",
+      "type": "string"
+    },
+    {
+      "key": "intentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "signature",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

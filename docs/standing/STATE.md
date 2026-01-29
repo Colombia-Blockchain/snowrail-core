@@ -110,7 +110,7 @@ Deployer: `0x22f6F000609d52A0b0efCD4349222cd9d70716Ba`
 | ~~GAP-1~~ | ~~CONFIG~~ | ~~Package.json exports order (warnings)~~ | ~~RESOLVED~~ |
 | ~~GAP-2~~ | ~~INFRA~~ | ~~Contracts not deployed to Fuji~~ | ~~RESOLVED~~ |
 | ~~GAP-3~~ | ~~TEST~~ | ~~No E2E tests (only unit tests)~~ | ~~RESOLVED~~ |
-| GAP-4 | DOCS | Missing Postman/curl collection | MEDIUM |
+| ~~GAP-4~~ | ~~DOCS~~ | ~~Missing Postman/curl collection~~ | ~~RESOLVED (docs/api/)~~ |
 | ~~GAP-5~~ | ~~ARCH~~ | ~~Missing eslint boundary rules~~ | ~~RESOLVED~~ |
 | ~~GAP-6~~ | ~~CONFIG~~ | ~~USDC addresses hardcoded~~ | ~~RESOLVED (config/networks.ts)~~ |
 
@@ -258,8 +258,31 @@ pnpm contracts:verify --network fuji
 - Automated E2E testing for quality assurance
 - Demo-ready project state
 
+### Issue #9: API Documentation & Postman Collection (COMPLETED - 2026-01-29)
+
+**Complete API documentation and testing tools created:**
+- Created `docs/api/ENDPOINTS.md` - Complete API reference with curl examples
+  - Documented all 6 main endpoints (SENTINEL + X402 Payment + Health)
+  - Included request/response examples
+  - Added error codes and troubleshooting
+- Created `docs/api/postman-collection.json` - Importable Postman collection
+  - Full collection with environment variables
+  - Automatic tests for all endpoints
+  - Pre-configured E2E flow
+- Created `docs/api/README.md` - Quick start guide for API usage
+  - Setup instructions for Postman
+  - Signing authorization guide
+  - Troubleshooting section
+- **GAP-4 RESOLVED**: Complete API documentation delivered
+
+**Key Improvements:**
+- Professional API documentation standards
+- Easy testing with Postman (no code required)
+- Complete curl examples for all endpoints
+- Developer-friendly quick start guide
+
 ---
 
-*Document validated: 2026-01-28*
+*Document validated: 2026-01-29*
 *Validator: Claude Code*
-*Status: GREEN - Architecture Enforcement + Zero Build Warnings*
+*Status: GREEN - All GAPs Resolved*
