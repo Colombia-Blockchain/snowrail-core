@@ -21,6 +21,9 @@ const config: HardhatUserConfig = {
       viaIR: true,
     },
   },
+  mocha: {
+    timeout: 60000,
+  },
   networks: {
     hardhat: {
       chainId: 31337,

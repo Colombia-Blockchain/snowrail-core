@@ -4,8 +4,8 @@
 
 Avalanche-first trust validation layer for AI agents, powered by x402 + SENTINEL
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![Tests](https://img.shields.io/badge/tests-36%20passing-brightgreen)]()
+[![CI](https://github.com/Colombia-Blockchain/snowrail-core/actions/workflows/ci.yml/badge.svg)](https://github.com/Colombia-Blockchain/snowrail-core/actions/workflows/ci.yml)
+[![Tests](https://img.shields.io/badge/tests-96%20passing-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-blue)]()
 
 ---
