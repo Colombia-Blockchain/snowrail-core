@@ -9,7 +9,15 @@
     "ecmaVersion": 2022,
     "sourceType": "module"
   },
-  "plugins": ["@typescript-eslint"],
+  "settings": {
+    "boundaries/elements": [
+      { "type": "apps", "pattern": "apps/*" },
+      { "type": "packages", "pattern": "packages/*" },
+      { "type": "core", "pattern": "packages/*/src/core/**/*" },
+      { "type": "adapters", "pattern": "packages/*/src/adapters/**/*" }
+    ]
+  },
+  "plugins": ["@typescript-eslint", "boundaries"],
   "extends": ["eslint:recommended"],
   "globals": {
     "RequestInit": "readonly",
@@ -27,7 +35,19 @@
     "no-console": "off",
     "semi": "off",
     "quotes": "off",
-    "no-unreachable": "warn"
+    "no-unreachable": "warn",
+    "boundaries/element-types": [
+      "error",
+      {
+        "default": "disallow",
+        "rules": [
+          { "from": "apps", "allow": ["packages"] },
+          { "from": "packages", "disallow": ["apps"] },
+          { "from": "adapters", "allow": ["core", "adapters"] },
+          { "from": "core", "disallow": ["adapters"] }
+        ]
+      }
+    ]
   },
   "ignorePatterns": [
     "node_modules/",
