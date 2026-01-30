@@ -43,6 +43,7 @@
     "contracts:deploy": "hardhat run scripts/deploy.ts --network fuji",
     "contracts:deploy:usdc": "hardhat run scripts/deploy-usdc.ts --network fuji",
     "contracts:deploy:treasury": "hardhat run scripts/deploy-treasury.ts --network fuji",
+    "contracts:deploy:agent-registry": "hardhat run scripts/deploy-agent-registry.ts --network fuji",
     "contracts:setup:roles": "hardhat run scripts/setup-roles.ts --network fuji",
     "contracts:verify": "hardhat verify --network fuji",
     "check:config": "tsx scripts/check-config.ts",

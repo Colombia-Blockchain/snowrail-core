@@ -30,6 +30,11 @@ import { createSentinel, Sentinel, createX402Facilitator, X402FacilitatorAdapter
 import { getTreasuryService, TreasuryService, PaymentResult } from './services/treasury';
 
 // ============================================================================
+// IMPORT ROUTES
+// ============================================================================
+import agentsRouter from './routes/agents';
+
+// ============================================================================
 // CONFIGURATION
 // ============================================================================
 
@@ -325,6 +330,11 @@ app.get('/health', (_req: Request, res: Response) => {
     treasury: treasuryService ? 'enabled' : 'disabled'
   });
 });
+
+// ============================================================================
+// AGENT ENDPOINTS (ERC-8004)
+// ============================================================================
+app.use('/v1/agents', agentsRouter);
 
 // ============================================================================
 // SENTINEL ENDPOINTS
@@ -840,6 +850,13 @@ app.listen(PORT, () => {
   YUKI (AI Assistant):
   - POST /v1/yuki/chat
   - GET  /v1/yuki/history/:userId
+
+  AGENTS (ERC-8004 Identity):
+  - GET  /v1/agents/:agentId
+  - POST /v1/agents/:agentId/capabilities/verify
+  - POST /v1/agents/:agentId/can-spend
+  - GET  /v1/agents/leaderboard/top
+  - GET  /v1/agents
 
   Health:
   - GET  /health

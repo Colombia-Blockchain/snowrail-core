@@ -1,0 +1,32 @@
+# Latest Deployment Information
+# Auto-generated - DO NOT EDIT MANUALLY
+
+DEPLOYMENT_DATE=2026-01-29
+DEPLOYMENT_NETWORK=fuji
+DEPLOYMENT_CHAIN_ID=43113
+
+# Contract Addresses (Verified on Snowtrace)
+AGENT_REGISTRY=0xd955B511969317b98076c25F14481fabf1A6862D
+TREASURY=0xbB647E31e26aDe9e2Df18Ed22c3c3A3b6802F50A
+MIXER=0xDC6C82D7cda35205b591CB763549b8d1268318Cd
+USDC=0x457aB3A4F4968163E72dda3c06aF938D9782F49A
+
+# Deployer
+DEPLOYER=0x22f6F000609d52A0b0efCD4349222cd9d70716Ba
+
+# Snowtrace Links
+AGENT_REGISTRY_VERIFIED=https://testnet.snowtrace.io/address/0xd955B511969317b98076c25F14481fabf1A6862D#code
+TREASURY_VERIFIED=https://testnet.snowtrace.io/address/0xbB647E31e26aDe9e2Df18Ed22c3c3A3b6802F50A
+MIXER_VERIFIED=https://testnet.snowtrace.io/address/0xDC6C82D7cda35205b591CB763549b8d1268318Cd
+USDC_VERIFIED=https://testnet.snowtrace.io/address/0x457aB3A4F4968163E72dda3c06aF938D9782F49A
+
+# Deployment Commands Used
+# pnpm contracts:deploy:usdc
+# pnpm contracts:deploy:treasury
+# pnpm contracts:deploy:agent-registry
+
+# Verification Status
+AGENT_REGISTRY_VERIFIED_STATUS=✅
+TREASURY_VERIFIED_STATUS=✅
+MIXER_VERIFIED_STATUS=✅
+USDC_VERIFIED_STATUS=✅
