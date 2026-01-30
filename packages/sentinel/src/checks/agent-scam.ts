@@ -341,7 +341,7 @@ export class AgentScamCheck extends BaseCheck {
     };
   }
 
-  private detectLoopTrap(url: URL, request: ValidationRequest): { detected: boolean } {
+  private detectLoopTrap(url: URL, _request: ValidationRequest): { detected: boolean } {
     // Check for recursive URL patterns
     const pathname = url.pathname;
     

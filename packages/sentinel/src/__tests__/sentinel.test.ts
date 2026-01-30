@@ -5,7 +5,7 @@
  * Run: npx vitest run
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 // ============================================================================
 // SENTINEL TESTS
@@ -164,7 +164,7 @@ describe('Integration', () => {
   describe('End-to-End Payment Flow', () => {
     it('should complete trusted payment flow', async () => {
       // 1. User requests payment
-      const paymentRequest = {
+      const _paymentRequest = {
         message: 'Pay $100 to https://api.stripe.com',
         userId: 'test-user-1'
       };
@@ -192,7 +192,7 @@ describe('Integration', () => {
 
     it('should block suspicious payment flow', async () => {
       // 1. User requests payment
-      const paymentRequest = {
+      const _paymentRequest = {
         message: 'Pay $1000 to https://free-money.scam',
         userId: 'test-user-2'
       };

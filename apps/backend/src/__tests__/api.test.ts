@@ -5,7 +5,7 @@
  * Run: pnpm --filter @snowrail/backend test
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
 
 // Mock the treasury service before importing app
@@ -139,7 +139,7 @@ describe('Sentinel API', () => {
 // ============================================================================
 
 describe('X402 Payment API', () => {
-  let testIntentId: string;
+  let _testIntentId: string;
 
   describe('POST /v1/payments/x402/intent', () => {
     it('creates payment intent for trusted URL', async () => {
@@ -158,7 +158,7 @@ describe('X402 Payment API', () => {
       expect(response.body.validation).toBeDefined();
       expect(response.body.usdcConfig).toBeDefined();
 
-      testIntentId = response.body.intent.id;
+      _testIntentId = response.body.intent.id;
     });
 
     it('blocks payment intent for untrusted URL', async () => {

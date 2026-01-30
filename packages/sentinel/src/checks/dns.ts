@@ -231,13 +231,9 @@ export class DNSCheck extends BaseCheck {
   }
 
   private async getCAA(_domain: string): Promise<CAARecord[]> {
-    try {
-      // CAA records require special handling
-      // For now, return empty - would need dns.resolveCaa in newer Node versions
-      return [];
-    } catch {
-      return [];
-    }
+    // CAA records require special handling
+    // For now, return empty - would need dns.resolveCaa in newer Node versions
+    return [];
   }
 
   private isCloudflareIP(ips: string[]): boolean {

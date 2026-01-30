@@ -21,7 +21,6 @@ import {
   ToolCall,
   ToolResult,
   YukiConfig,
-  YukiEvent,
   YukiEventType,
   YukiEventHandler
 } from '../types';
@@ -205,13 +204,13 @@ class OpenAIProvider implements LLMProvider {
 class MockProvider implements LLMProvider {
   name = 'mock';
 
-  async chat(messages: LLMMessage[], tools?: LLMTool[]): Promise<LLMResponse> {
+  async chat(messages: LLMMessage[], _tools?: LLMTool[]): Promise<LLMResponse> {
     const last = messages[messages.length - 1]?.content?.toLowerCase() || '';
 
     // Payment intent detection
     const payMatch = last.match(/pay\s+\$?(\d+(?:\.\d+)?)\s+(?:to\s+)?(.+)/i);
     if (payMatch) {
-      const amount = payMatch[1];
+      const _amount = payMatch[1];
       let recipient = payMatch[2].trim();
       const urlMatch = recipient.match(/https?:\/\/[^\s]+/);
       if (urlMatch) recipient = urlMatch[0];

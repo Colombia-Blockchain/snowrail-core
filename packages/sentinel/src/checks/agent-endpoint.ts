@@ -350,7 +350,7 @@ export class AgentEndpointCheck extends BaseCheck {
     return 'GENERIC_API';
   }
 
-  private getRecommendation(score: number, findings: string[]): string {
+  private getRecommendation(score: number, _findings: string[]): string {
     if (score >= 80) return 'SAFE: Endpoint verified for autonomous agent payments';
     if (score >= 60) return 'MODERATE: Verify agent identity before high-value transactions';
     if (score >= 40) return 'CAUTION: Additional verification recommended';
