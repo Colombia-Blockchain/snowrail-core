@@ -2,6 +2,7 @@
   "name": "snowrail",
   "version": "2.0.0",
   "private": true,
+  "packageManager": "pnpm@10.13.1",
   "description": "SnowRail - Autonomous Treasury Orchestrator with YUKI AI Assistant & SENTINEL Trust Layer",
   "author": "Colombia Blockchain <team@snowrail.xyz>",
   "license": "MIT",
